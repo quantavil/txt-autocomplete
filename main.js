@@ -47,7 +47,62 @@ class Trie {
     this._collect(node, prefix, out, limit);
     return out;
   }
+  searchFuzzy(term, maxEdits, limit) {
+    if (!term) return [];
+    const query = term.toLowerCase().normalize('NFC');
+    const cols = query.length + 1;
 
+    const firstRow = new Array(cols);
+    for (let j = 0; j < cols; j++) firstRow[j] = j;
+
+    const out = []; // { word, dist }
+    this._fuzzyDfs(this.root, '', '', query, firstRow, null, maxEdits, out, limit);
+
+    out.sort((a, b) => a.dist - b.dist || a.word.localeCompare(b.word, undefined, { sensitivity: 'base' }));
+    return out.slice(0, limit).map(x => x.word);
+  }
+
+  // Damerau–Levenshtein (OSA) over the trie with pruning by row minimum
+  _fuzzyDfs(node, prefix, prevChar, query, prevRow, prevPrevRow, maxEdits, out, limit) {
+    for (const [ch, child] of node.children) {
+      const currRow = [prevRow[0] + 1];
+      let rowMin = currRow[0];
+
+      for (let j = 1; j < prevRow.length; j++) {
+        const cost = query[j - 1] === ch ? 0 : 1;
+        let v = Math.min(
+          currRow[j - 1] + 1,     // insertion
+          prevRow[j] + 1,         // deletion
+          prevRow[j - 1] + cost   // substitution
+        );
+
+        // Adjacent transposition (OSA)
+        if (prevPrevRow && j > 1 && ch === query[j - 2] && prevChar === query[j - 1]) {
+          v = Math.min(v, prevPrevRow[j - 2] + 1);
+        }
+
+        currRow[j] = v;
+        if (v < rowMin) rowMin = v;
+      }
+
+      const newPrefix = prefix + ch;
+      const dist = currRow[currRow.length - 1];
+
+      if (child.isWord && dist <= maxEdits) {
+        out.push({ word: newPrefix, dist });
+        // keep candidate list contained as we traverse
+        if (out.length > limit * 8) {
+          out.sort((a, b) => a.dist - b.dist || a.word.localeCompare(b.word));
+          out.length = limit * 4;
+        }
+      }
+
+      // prune this branch if we cannot keep distance within maxEdits
+      if (rowMin <= maxEdits) {
+        this._fuzzyDfs(child, newPrefix, ch, query, currRow, prevRow, maxEdits, out, limit);
+      }
+    }
+  }
   _collect(node, prefix, out, limit) {
     if (out.length >= limit) return;
     if (node.isWord) out.push(prefix);
@@ -169,11 +224,42 @@ class TextAutocompletePlugin extends Plugin {
     }
   }
 
+  // Inside class TextAutocompletePlugin
   getSuggestions(prefix) {
-    const list = this.trie.search(prefix, this.settings.maxSuggestions);
-    return list.map((w) => this.matchCase(w, prefix));
+    const limit = this.settings.maxSuggestions;
+    const exact = this.trie.search(prefix, limit);
+
+    if (exact.length >= limit) {
+      return exact.map(w => this.matchCase(w, prefix));
+    }
+
+    // Compute allowed edits based on query length (fast + generous on long words)
+    const edits = this.allowedEdits(prefix);
+
+    // Pull more than needed; we’ll dedupe + trim
+    const fuzzy = this.trie.searchFuzzy(prefix, edits, limit * 6);
+
+    // Merge with exact, preferring exact first
+    const seen = new Set(exact.map(w => w.toLowerCase().normalize('NFC')));
+    const merged = [...exact];
+    for (const w of fuzzy) {
+      const k = w.toLowerCase().normalize('NFC');
+      if (!seen.has(k)) {
+        merged.push(w);
+        seen.add(k);
+        if (merged.length >= limit) break;
+      }
+    }
+
+    return merged.slice(0, limit).map(w => this.matchCase(w, prefix));
   }
 
+  allowedEdits(q) {
+    const n = (q || '').toLowerCase().normalize('NFC').length;
+    if (n <= 4) return 1;
+    if (n <= 8) return 2;
+    return 3;
+  }
   matchCase(word, original) {
     if (original === original.toUpperCase()) return word.toUpperCase();
     if (original[0] === original[0].toUpperCase()) {

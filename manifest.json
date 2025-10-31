@@ -1,7 +1,7 @@
 {
   "id": "txt-autocomplete",
   "name": "Txt Autocomplete",
-  "version": "1.4",
+  "version": "1.5",
   "minAppVersion": "0.15.0",
   "description": "Intelligent text autocomplete with context awareness and learning capabilities",
   "author": "Quantavil",
