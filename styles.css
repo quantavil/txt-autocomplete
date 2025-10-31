@@ -4,45 +4,53 @@
 
 .autocomplete-dropdown {
     position: absolute;
-    z-index: 9999;
-    background-color: var(--background-primary);
+    z-index: var(--layer-popover, 9999);
+    background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    overflow: hidden;
+    border-radius: var(--radius-m, 6px);
+    box-shadow: var(--shadow-s);
     min-width: 200px;
-    max-width: 300px;
-    animation: autocomplete-fade-in 0.15s ease-out;
+    max-width: 320px;
+    overflow: hidden;
+    animation: autocomplete-appear 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+    font-family: var(--font-interface);
 }
 
-@keyframes autocomplete-fade-in {
+@keyframes autocomplete-appear {
     from {
         opacity: 0;
-        transform: translateY(-5px);
+        transform: translateY(-8px) scale(0.96);
     }
     to {
         opacity: 1;
-        transform: translateY(0);
+        transform: translateY(0) scale(1);
     }
 }
 
+/* List container */
 .autocomplete-list {
     list-style: none;
     margin: 0;
-    padding: 4px 0;
+    padding: 4px;
     max-height: 300px;
     overflow-y: auto;
+    overflow-x: hidden;
 }
 
+/* Individual suggestion items */
 .autocomplete-item {
-    padding: 8px 16px;
+    padding: 6px 12px;
     cursor: pointer;
-    transition: background-color 0.1s ease;
-    font-size: 14px;
+    border-radius: var(--radius-s, 4px);
+    transition: background-color 0.08s ease, color 0.08s ease;
+    font-size: var(--font-ui-small, 13px);
     color: var(--text-normal);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.4;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .autocomplete-item:hover {
@@ -54,12 +62,23 @@
     color: var(--text-on-accent);
 }
 
+/* Highlighted prefix match */
 .autocomplete-match {
     font-weight: 600;
-    color: inherit;
+    opacity: 1;
 }
 
-/* Scrollbar styling */
+/* When item is selected, make match even more visible */
+.autocomplete-item.is-selected .autocomplete-match {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+}
+
+/* ============================================================================
+   SCROLLBAR STYLING
+   ============================================================================ */
+
 .autocomplete-list::-webkit-scrollbar {
     width: 8px;
 }
@@ -71,56 +90,219 @@
 .autocomplete-list::-webkit-scrollbar-thumb {
     background: var(--background-modifier-border);
     border-radius: 4px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
 }
 
 .autocomplete-list::-webkit-scrollbar-thumb:hover {
     background: var(--text-faint);
+    background-clip: padding-box;
+}
+
+/* Firefox scrollbar */
+.autocomplete-list {
+    scrollbar-width: thin;
+    scrollbar-color: var(--background-modifier-border) transparent;
 }
 
 /* ============================================================================
-   SETTINGS
+   SETTINGS PAGE - CUSTOM WORDS
    ============================================================================ */
 
-.custom-words-container {
-    margin-top: 10px;
-    padding: 10px;
-    background-color: var(--background-secondary);
-    border-radius: 6px;
-    max-height: 300px;
+.custom-words {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s, 4px);
+    max-height: 320px;
     overflow-y: auto;
 }
 
-.custom-words-container .setting-item {
+.custom-words .setting-item {
     border-top: none;
     padding: 8px 0;
+    margin: 0;
 }
 
-.custom-words-container .setting-item-name {
+.custom-words .setting-item:first-child {
+    padding-top: 0;
+}
+
+.custom-words .setting-item:last-child {
+    padding-bottom: 0;
+}
+
+.custom-words .setting-item-name {
     font-family: var(--font-monospace);
     color: var(--text-accent);
+    font-size: var(--font-ui-small);
+}
+
+.custom-words .setting-item-control {
+    flex-shrink: 0;
+}
+
+/* Scrollbar for custom words */
+.custom-words::-webkit-scrollbar {
+    width: 8px;
+}
+
+.custom-words::-webkit-scrollbar-thumb {
+    background: var(--background-modifier-border);
+    border-radius: 4px;
+}
+
+.custom-words {
+    scrollbar-width: thin;
+    scrollbar-color: var(--background-modifier-border) transparent;
 }
 
 /* ============================================================================
-   RESPONSIVE & DARK MODE
+   THEME-SPECIFIC ADJUSTMENTS
    ============================================================================ */
 
 .theme-dark .autocomplete-dropdown {
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 
+                0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
 .theme-light .autocomplete-dropdown {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 
+                0 2px 4px rgba(0, 0, 0, 0.06);
 }
 
-/* Mobile optimization */
+/* ============================================================================
+   MOBILE & TABLET RESPONSIVE
+   ============================================================================ */
+
 @media (max-width: 768px) {
     .autocomplete-dropdown {
         min-width: 180px;
-        max-width: 250px;
+        max-width: 280px;
     }
     
     .autocomplete-item {
         padding: 10px 14px;
+        font-size: var(--font-ui-medium, 14px);
+        /* Larger tap targets on mobile */
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+    }
+    
+    .autocomplete-list {
+        max-height: 250px;
+    }
+}
+
+@media (max-width: 480px) {
+    .autocomplete-dropdown {
+        min-width: 160px;
+        max-width: 240px;
         font-size: 15px;
+    }
+    
+    .autocomplete-list {
+        max-height: 200px;
+    }
+}
+
+/* ============================================================================
+   ACCESSIBILITY & FOCUS STATES
+   ============================================================================ */
+
+.autocomplete-item:focus {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: -2px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .autocomplete-dropdown {
+        border-width: 2px;
+    }
+    
+    .autocomplete-item.is-selected {
+        outline: 2px solid var(--text-on-accent);
+        outline-offset: -2px;
+    }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+    .autocomplete-dropdown {
+        animation: none;
+    }
+    
+    .autocomplete-item {
+        transition: none;
+    }
+}
+
+/* ============================================================================
+   PERFORMANCE OPTIMIZATIONS
+   ============================================================================ */
+
+.autocomplete-dropdown {
+    /* GPU acceleration for smooth animations */
+    will-change: opacity, transform;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+}
+
+.autocomplete-item {
+    /* Optimize repaints */
+    contain: layout style paint;
+}
+
+/* ============================================================================
+   EDGE CASES & POLISH
+   ============================================================================ */
+
+/* Handle very long words */
+.autocomplete-item {
+    word-break: break-word;
+    hyphens: auto;
+}
+
+/* Empty state (shouldn't show, but just in case) */
+.autocomplete-list:empty::before {
+    content: 'No suggestions';
+    display: block;
+    padding: 12px;
+    color: var(--text-faint);
+    font-style: italic;
+    text-align: center;
+}
+
+/* Prevent text selection in dropdown */
+.autocomplete-dropdown {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+}
+
+/* Smooth fade out when closing */
+.autocomplete-dropdown.is-closing {
+    animation: autocomplete-disappear 0.1s ease-out forwards;
+}
+
+@keyframes autocomplete-disappear {
+    to {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.98);
+    }
+}
+
+/* ============================================================================
+   PRINT STYLES (hide dropdown when printing)
+   ============================================================================ */
+
+@media print {
+    .autocomplete-dropdown {
+        display: none !important;
     }
 }

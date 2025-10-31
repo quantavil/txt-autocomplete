@@ -1,10 +1,10 @@
 {
   "id": "txt-autocomplete",
   "name": "Txt Autocomplete",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minAppVersion": "0.15.0",
   "description": "Intelligent text autocomplete with context awareness and learning capabilities",
-  "author": "Your Name",
-  "authorUrl": "https://yourwebsite.com",
+  "author": "Quantavil",
+  "authorUrl": "https://github.com/quantavil/",
   "isDesktopOnly": false
 }
