@@ -1,444 +1,135 @@
 /* ============================================================================
-   Text Autocomplete Plugin Styles
+   Text Autocomplete — Ghost Text Styles (refined)
    ============================================================================ */
 
-/* ============================================================================
-   Ghost Text - Core Styles
-   ============================================================================ */
+/* Design tokens (tweak to taste) */
+:root {
+  --ghost-opacity: 0.46;
+  --ghost-fuzzy-opacity: 0.58;
+  --ghost-arrow-opacity: 0.8;
+  --ghost-anim: 140ms;
 
+  --ghost-color: var(--text-faint);
+  --ghost-fuzzy-color: var(--text-muted);
+  --ghost-arrow-color: var(--text-accent);
+}
+
+/* Theme tuning */
+.theme-dark {
+  --ghost-opacity: 0.42;
+  --ghost-fuzzy-opacity: 0.52;
+  --ghost-arrow-opacity: 0.85;
+}
+
+.theme-light {
+  --ghost-opacity: 0.5;
+  --ghost-fuzzy-opacity: 0.62;
+  --ghost-arrow-opacity: 0.78;
+}
+
+/* Core */
 .cm-ghost-text {
-  color: var(--text-faint);
-  opacity: 0.45;
+  color: var(--ghost-color);
+  opacity: var(--ghost-opacity);
   pointer-events: none;
   user-select: none;
-  font-style: normal;
+  white-space: pre;
+  display: inline;
   position: relative;
-  display: inline;
-  white-space: pre;
-}
-
-/* Fuzzy match variant */
-.cm-ghost-fuzzy {
-  opacity: 0.55;
-}
-
-/* Fuzzy indicator arrow */
-.cm-ghost-arrow {
-  color: var(--text-accent);
-  opacity: 0.7;
-  font-size: 0.85em;
-  margin-right: 2px;
-  font-weight: 600;
-}
-
-/* ============================================================================
-   Animations
-   ============================================================================ */
-
-@keyframes ghost-appear {
-  from {
-    opacity: 0;
-    transform: translateX(2px);
-  }
-  to {
-    opacity: 0.45;
-    transform: translateX(0);
-  }
-}
-
-@keyframes ghost-fuzzy-appear {
-  from {
-    opacity: 0;
-    transform: translateX(2px);
-  }
-  to {
-    opacity: 0.55;
-    transform: translateX(0);
-  }
-}
-
-.cm-ghost-text {
-  animation: ghost-appear 0.15s ease-out;
-}
-
-.cm-ghost-fuzzy {
-  animation: ghost-fuzzy-appear 0.15s ease-out;
-}
-
-/* Subtle pulse for fuzzy (optional - can be disabled) */
-@keyframes fuzzy-pulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 0.7; }
-}
-
-.cm-ghost-fuzzy.cm-ghost-pulse {
-  animation: fuzzy-pulse 2s ease-in-out infinite;
-}
-
-/* ============================================================================
-   Theme Variants - Dark
-   ============================================================================ */
-
-.theme-dark .cm-ghost-text {
-  opacity: 0.4;
-  color: var(--text-muted);
-}
-
-.theme-dark .cm-ghost-fuzzy {
-  opacity: 0.5;
-}
-
-.theme-dark .cm-ghost-arrow {
-  color: var(--text-accent-hover);
-  opacity: 0.8;
-}
-
-/* ============================================================================
-   Theme Variants - Light
-   ============================================================================ */
-
-.theme-light .cm-ghost-text {
-  opacity: 0.5;
-  color: var(--text-faint);
-}
-
-.theme-light .cm-ghost-fuzzy {
-  opacity: 0.6;
-}
-
-.theme-light .cm-ghost-arrow {
-  color: var(--text-accent);
-  opacity: 0.75;
-}
-
-/* ============================================================================
-   Accessibility - High Contrast
-   ============================================================================ */
-
-@media (prefers-contrast: high) {
-  .cm-ghost-text {
-    opacity: 0.7;
-    text-decoration: underline;
-    text-decoration-style: dotted;
-    text-decoration-color: var(--text-faint);
-    text-underline-offset: 2px;
-    text-decoration-thickness: 1px;
-  }
-
-  .cm-ghost-fuzzy {
-    opacity: 0.8;
-    text-decoration-style: dashed;
-  }
-
-  .cm-ghost-arrow {
-    opacity: 1;
-    font-weight: 700;
-  }
-
-  .theme-dark .cm-ghost-text {
-    opacity: 0.75;
-    color: var(--text-normal);
-  }
-
-  .theme-light .cm-ghost-text {
-    opacity: 0.8;
-  }
-}
-
-/* ============================================================================
-   Accessibility - Reduced Motion
-   ============================================================================ */
-
-@media (prefers-reduced-motion: reduce) {
-  .cm-ghost-text,
-  .cm-ghost-fuzzy,
-  .cm-ghost-pulse {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-
-/* ============================================================================
-   Mobile & Responsive
-   ============================================================================ */
-
-@media (max-width: 768px) {
-  .cm-ghost-text {
-    opacity: 0.5;
-  }
-
-  .cm-ghost-fuzzy {
-    opacity: 0.6;
-  }
-
-  .cm-ghost-arrow {
-    font-size: 0.9em;
-    margin-right: 1px;
-  }
-}
-
-@media (max-width: 480px) {
-  .cm-ghost-text {
-    opacity: 0.55;
-  }
-
-  .cm-ghost-fuzzy {
-    opacity: 0.65;
-  }
-
-  .theme-dark .cm-ghost-text {
-    opacity: 0.5;
-  }
-
-  .theme-light .cm-ghost-text {
-    opacity: 0.6;
-  }
-}
-
-/* ============================================================================
-   Print
-   ============================================================================ */
-
-@media print {
-  .cm-ghost-text,
-  .cm-ghost-fuzzy,
-  .cm-ghost-arrow {
-    display: none !important;
-  }
-}
-
-/* ============================================================================
-   Editor Integration
-   ============================================================================ */
-
-/* Ensure ghost text doesn't break layout */
-.cm-line .cm-ghost-text {
-  display: inline;
-  white-space: pre;
   line-height: inherit;
-  font-family: inherit;
-  font-size: inherit;
+  font: inherit;
+  animation: ghost-in var(--ghost-anim) ease-out;
 }
 
-/* Prevent selection issues */
-.cm-ghost-text::selection {
-  background: transparent;
+.cm-ghost-fuzzy {
+  color: var(--ghost-fuzzy-color);
+  opacity: var(--ghost-fuzzy-opacity);
+  text-decoration: underline dotted currentColor;
+  text-underline-offset: 2px;
+  animation: ghost-in-fuzzy var(--ghost-anim) ease-out;
 }
 
-.cm-ghost-text::-moz-selection {
-  background: transparent;
+.cm-ghost-arrow {
+  color: var(--ghost-arrow-color);
+  opacity: var(--ghost-arrow-opacity);
+  display: inline-block;
+  margin-right: 0.3em;
+  font-weight: 600;
+  font-size: 0.9em;
+  transform: translateY(-0.02em);
 }
 
-/* ============================================================================
-   Focus States
-   ============================================================================ */
-
-/* Make ghost text more subtle when editor loses focus */
-.cm-editor:not(.cm-focused) .cm-ghost-text {
-  opacity: 0.25;
+/* Appear animations (respect per-variant opacity) */
+@keyframes ghost-in {
+  from { opacity: 0; transform: translateX(2px); }
+  to   { opacity: var(--ghost-opacity); transform: translateX(0); }
 }
 
+@keyframes ghost-in-fuzzy {
+  from { opacity: 0; transform: translateX(2px); }
+  to   { opacity: var(--ghost-fuzzy-opacity); transform: translateX(0); }
+}
+
+/* Focus behavior: quieter when editor blurs */
+.cm-editor:not(.cm-focused) .cm-ghost-text,
 .cm-editor:not(.cm-focused) .cm-ghost-fuzzy {
   opacity: 0.3;
 }
 
 .cm-editor:not(.cm-focused) .cm-ghost-arrow {
-  opacity: 0.4;
+  opacity: 0.45;
 }
 
-/* ============================================================================
-   Special Cases
-   ============================================================================ */
-
-/* In code blocks - slightly different styling */
-.cm-line.HyperMD-codeblock .cm-ghost-text {
-  font-family: var(--font-monospace);
-  opacity: 0.35;
+/* Accessibility: high-contrast */
+@media (prefers-contrast: more) {
+  .cm-ghost-text { opacity: 0.8; }
+  .cm-ghost-fuzzy {
+    opacity: 0.9;
+    text-decoration-style: dashed;
+    text-decoration-thickness: 1px;
+  }
+  .cm-ghost-arrow { opacity: 1; font-weight: 700; }
 }
 
-/* In headers - match header weight */
-.cm-line.HyperMD-header .cm-ghost-text {
-  font-weight: inherit;
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .cm-ghost-text,
+  .cm-ghost-fuzzy {
+    animation: none !important;
+    transition: none !important;
+  }
 }
 
-/* In lists - proper alignment */
-.cm-line.HyperMD-list-line .cm-ghost-text {
-  vertical-align: baseline;
+/* Mobile tweaks */
+@media (max-width: 768px) {
+  .cm-ghost-arrow { margin-right: 0.2em; font-size: 0.95em; }
 }
 
-/* ============================================================================
-   Custom Arrow Variants (Uncomment to use)
-   ============================================================================ */
-
-/* Alternative arrow styles - uncomment one to use */
-
-/* Curved arrow */
-/*
-.cm-ghost-arrow::before {
-  content: '↪';
-}
-*/
-
-/* Replacement symbol */
-/*
-.cm-ghost-arrow::before {
-  content: '⟲';
-}
-*/
-
-/* Edit symbol */
-/*
-.cm-ghost-arrow::before {
-  content: '✎';
-}
-*/
-
-/* Forward arrow (default) */
-/*
-.cm-ghost-arrow::before {
-  content: '→';
-}
-*/
-
-/* ============================================================================
-   Advanced Customization Variables
-   ============================================================================ */
-
-:root {
-  --ghost-text-opacity: 0.45;
-  --ghost-fuzzy-opacity: 0.55;
-  --ghost-arrow-opacity: 0.7;
-  --ghost-animation-duration: 0.15s;
+/* Print: hide ghost UI */
+@media print {
+  .cm-ghost-text,
+  .cm-ghost-fuzzy,
+  .cm-ghost-arrow { display: none !important; }
 }
 
-.theme-dark {
-  --ghost-text-opacity: 0.4;
-  --ghost-fuzzy-opacity: 0.5;
-  --ghost-arrow-opacity: 0.8;
+/* Selection safety */
+.cm-ghost-text::selection,
+.cm-ghost-fuzzy::selection { background: transparent; }
+.cm-ghost-text::-moz-selection,
+.cm-ghost-fuzzy::-moz-selection { background: transparent; }
+
+/* RTL support */
+[dir="rtl"] .cm-ghost-arrow {
+  margin-right: 0;
+  margin-left: 0.3em;
+  transform: scaleX(-1) translateY(-0.02em);
 }
 
-.theme-light {
-  --ghost-text-opacity: 0.5;
-  --ghost-fuzzy-opacity: 0.6;
-  --ghost-arrow-opacity: 0.75;
-}
-
-/* Apply custom properties (optional override) */
-/*
-.cm-ghost-text {
-  opacity: var(--ghost-text-opacity);
-  animation-duration: var(--ghost-animation-duration);
-}
-
-.cm-ghost-fuzzy {
-  opacity: var(--ghost-fuzzy-opacity);
-}
-
-.cm-ghost-arrow {
-  opacity: var(--ghost-arrow-opacity);
-}
-*/
-
-/* ============================================================================
-   Debug Mode (Uncomment to see ghost text boundaries)
-   ============================================================================ */
-
-/*
-.cm-ghost-text {
-  outline: 1px dashed red;
-  background: rgba(255, 0, 0, 0.05);
-}
-
-.cm-ghost-fuzzy {
-  outline: 1px dashed blue;
-  background: rgba(0, 0, 255, 0.05);
-}
-
-.cm-ghost-arrow {
-  outline: 1px solid green;
-}
-*/
-
-/* ============================================================================
-   Performance Optimizations
-   ============================================================================ */
-
+/* Performance hints */
 .cm-ghost-text,
 .cm-ghost-fuzzy,
 .cm-ghost-arrow {
-  will-change: opacity;
+  will-change: opacity, transform;
   backface-visibility: hidden;
   transform: translateZ(0);
 }
-
-/* ============================================================================
-   RTL Language Support
-   ============================================================================ */
-
-[dir="rtl"] .cm-ghost-arrow {
-  margin-right: 0;
-  margin-left: 2px;
-  transform: scaleX(-1);
-}
-
-[dir="rtl"] .cm-ghost-text {
-  direction: rtl;
-}
-
-/* ============================================================================
-   Color Scheme Preferences
-   ============================================================================ */
-
-@media (prefers-color-scheme: dark) {
-  :root:not(.theme-light) .cm-ghost-text {
-    opacity: 0.4;
-    color: var(--text-muted);
-  }
-
-  :root:not(.theme-light) .cm-ghost-fuzzy {
-    opacity: 0.5;
-  }
-
-  :root:not(.theme-light) .cm-ghost-arrow {
-    opacity: 0.8;
-  }
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not(.theme-dark) .cm-ghost-text {
-    opacity: 0.5;
-  }
-
-  :root:not(.theme-dark) .cm-ghost-fuzzy {
-    opacity: 0.6;
-  }
-
-  :root:not(.theme-dark) .cm-ghost-arrow {
-    opacity: 0.75;
-  }
-}
-
-/* ============================================================================
-   Obsidian Theme Compatibility
-   ============================================================================ */
-
-/* Minimal theme */
-body.minimal-theme .cm-ghost-text {
-  font-family: var(--font-text);
-}
-
-/* California Coast theme */
-body.theme-california-coast .cm-ghost-text {
-  color: var(--text-muted);
-}
-
-/* Things theme */
-body.theme-things .cm-ghost-arrow {
-  color: var(--interactive-accent);
-}
-
-/* ============================================================================
-   Custom Theme Overrides (User customization area)
-   ============================================================================ */
-
-/* Add your custom overrides below this line */

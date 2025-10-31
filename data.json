@@ -4,6 +4,7 @@
   "minLength": 3,
   "addSpace": true,
   "enableInCode": false,
+  "fuzzyEdits": 2,
   "useGhostText": true,
   "showPopupWithGhost": false,
   "minWordLength": 3,
