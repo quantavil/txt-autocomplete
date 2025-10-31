@@ -1,16 +1,9 @@
-const {
-  App,
-  Plugin,
-  PluginSettingTab,
-  Setting,
-  normalizePath,
-} = require('obsidian');
-
+const { App, Plugin, PluginSettingTab, Setting, normalizePath } = require('obsidian');
 const { EditorView, Decoration, ViewPlugin, WidgetType } = require('@codemirror/view');
 const { StateEffect, StateField, Prec } = require('@codemirror/state');
 
 // ============================================================================
-// Optimized Trie
+// Trie
 // ============================================================================
 
 class TrieNode {
@@ -38,76 +31,77 @@ class Trie {
   search(prefix, limit) {
     if (!prefix) return [];
     let node = this.root;
-    prefix = prefix.toLowerCase();
-    for (const ch of prefix) {
+    const lower = prefix.toLowerCase();
+    
+    for (const ch of lower) {
       node = node.children.get(ch);
       if (!node) return [];
     }
-    const out = [];
-    this._collect(node, prefix, out, limit);
-    return out;
+    
+    const results = [];
+    this._collect(node, lower, results, limit);
+    return results;
   }
 
   searchFuzzy(term, maxEdits, limit) {
     if (!term) return [];
-    const query = term.toLowerCase().normalize('NFC');
+    const query = term.toLowerCase();
     const cols = query.length + 1;
+    const firstRow = Array.from({ length: cols }, (_, i) => i);
+    const results = [];
 
-    const firstRow = new Array(cols);
-    for (let j = 0; j < cols; j++) firstRow[j] = j;
-
-    const out = [];
-    this._fuzzyDfs(this.root, '', '', query, firstRow, null, maxEdits, out, limit);
-
-    out.sort((a, b) => a.dist - b.dist || a.word.localeCompare(b.word, undefined, { sensitivity: 'base' }));
-    return out.slice(0, limit).map(x => x.word);
+    this._fuzzyDfs(this.root, '', '', query, firstRow, null, maxEdits, results, limit);
+    
+    results.sort((a, b) => a.dist - b.dist || a.word.localeCompare(b.word));
+    return results.slice(0, limit);
   }
 
-  _fuzzyDfs(node, prefix, prevChar, query, prevRow, prevPrevRow, maxEdits, out, limit) {
+  _fuzzyDfs(node, prefix, prevChar, query, prevRow, prevPrevRow, maxEdits, results, limit) {
     for (const [ch, child] of node.children) {
       const currRow = [prevRow[0] + 1];
       let rowMin = currRow[0];
 
       for (let j = 1; j < prevRow.length; j++) {
         const cost = query[j - 1] === ch ? 0 : 1;
-        let v = Math.min(
+        let val = Math.min(
           currRow[j - 1] + 1,
           prevRow[j] + 1,
           prevRow[j - 1] + cost
         );
 
+        // Damerau-Levenshtein transposition
         if (prevPrevRow && j > 1 && ch === query[j - 2] && prevChar === query[j - 1]) {
-          v = Math.min(v, prevPrevRow[j - 2] + 1);
+          val = Math.min(val, prevPrevRow[j - 2] + 1);
         }
 
-        currRow[j] = v;
-        if (v < rowMin) rowMin = v;
+        currRow[j] = val;
+        if (val < rowMin) rowMin = val;
       }
 
       const newPrefix = prefix + ch;
       const dist = currRow[currRow.length - 1];
 
       if (child.isWord && dist <= maxEdits) {
-        out.push({ word: newPrefix, dist });
-        if (out.length > limit * 8) {
-          out.sort((a, b) => a.dist - b.dist || a.word.localeCompare(b.word));
-          out.length = limit * 4;
+        results.push({ word: newPrefix, dist });
+        if (results.length > limit * 4) {
+          results.sort((a, b) => a.dist - b.dist);
+          results.length = limit * 2;
         }
       }
 
       if (rowMin <= maxEdits) {
-        this._fuzzyDfs(child, newPrefix, ch, query, currRow, prevRow, maxEdits, out, limit);
+        this._fuzzyDfs(child, newPrefix, ch, query, currRow, prevRow, maxEdits, results, limit);
       }
     }
   }
 
-  _collect(node, prefix, out, limit) {
-    if (out.length >= limit) return;
-    if (node.isWord) out.push(prefix);
-    const keys = Array.from(node.children.keys()).sort();
-    for (const k of keys) {
-      if (out.length >= limit) break;
-      this._collect(node.children.get(k), prefix + k, out, limit);
+  _collect(node, prefix, results, limit) {
+    if (results.length >= limit) return;
+    if (node.isWord) results.push(prefix);
+    
+    for (const [k, child] of node.children) {
+      if (results.length >= limit) break;
+      this._collect(child, prefix + k, results, limit);
     }
   }
 }
@@ -122,6 +116,7 @@ const DEFAULT_SETTINGS = {
   minLength: 3,
   addSpace: true,
   enableInCode: false,
+  fuzzyEdits: 2,
 };
 
 // ============================================================================
@@ -133,30 +128,22 @@ const CycleSuggestionEffect = StateEffect.define();
 const ClearSuggestionsEffect = StateEffect.define();
 
 const GhostTextState = StateField.define({
-  create() {
-    return null;
-  },
-  update(value, transaction) {
-    for (const effect of transaction.effects) {
-      if (effect.is(SetSuggestionsEffect)) {
-        return effect.value;
-      }
-      if (effect.is(CycleSuggestionEffect)) {
-        if (!value || value.suggestions.length === 0) return value;
+  create: () => null,
+  
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(SetSuggestionsEffect)) return effect.value;
+      if (effect.is(ClearSuggestionsEffect)) return null;
+      
+      if (effect.is(CycleSuggestionEffect) && value?.suggestions.length > 1) {
         const newIndex = (value.currentIndex + effect.value + value.suggestions.length) % value.suggestions.length;
         return { ...value, currentIndex: newIndex };
       }
-      if (effect.is(ClearSuggestionsEffect)) {
-        return null;
-      }
     }
     
-    // Auto-clear on document changes or selection changes
-    if (value && (transaction.docChanged || transaction.selection)) {
-      const newPos = transaction.state.selection.main.head;
-      if (newPos !== value.cursorPos) {
-        return null;
-      }
+    // Auto-clear on cursor move or document change
+    if (value && (tr.docChanged || tr.selection)) {
+      if (tr.state.selection.main.head !== value.cursorPos) return null;
     }
     
     return value;
@@ -168,19 +155,29 @@ const GhostTextState = StateField.define({
 // ============================================================================
 
 class GhostTextWidget extends WidgetType {
-  constructor(text) {
+  constructor(text, isFuzzy) {
     super();
     this.text = text;
+    this.isFuzzy = isFuzzy;
   }
 
   eq(other) {
-    return other.text === this.text;
+    return other.text === this.text && other.isFuzzy === this.isFuzzy;
   }
 
   toDOM() {
     const span = document.createElement('span');
-    span.className = 'cm-ghost-text';
-    span.textContent = this.text;
+    span.className = this.isFuzzy ? 'cm-ghost-text cm-ghost-fuzzy' : 'cm-ghost-text';
+    
+    if (this.isFuzzy) {
+      const arrow = span.appendChild(document.createElement('span'));
+      arrow.className = 'cm-ghost-arrow';
+      arrow.textContent = '→';
+      span.appendChild(document.createTextNode(this.text));
+    } else {
+      span.textContent = this.text;
+    }
+    
     return span;
   }
 
@@ -203,22 +200,17 @@ const GhostTextPlugin = Prec.lowest(
       update(update) {
         const state = update.state.field(GhostTextState);
         
-        if (state && state.suggestions.length > 0) {
-          const suggestion = state.suggestions[state.currentIndex];
-          const widget = new GhostTextWidget(suggestion);
-          const deco = Decoration.widget({
-            widget,
-            side: 1,
-          });
+        if (state?.suggestions.length > 0) {
+          const { text, isFuzzy } = state.suggestions[state.currentIndex];
+          const widget = new GhostTextWidget(text, isFuzzy);
+          const deco = Decoration.widget({ widget, side: 1 });
           this.decorations = Decoration.set([deco.range(state.cursorPos)]);
         } else {
           this.decorations = Decoration.none;
         }
       }
     },
-    {
-      decorations: v => v.decorations,
-    }
+    { decorations: v => v.decorations }
   )
 );
 
@@ -231,65 +223,51 @@ function createKeyHandler(plugin) {
     EditorView.domEventHandlers({
       keydown(event, view) {
         const state = view.state.field(GhostTextState);
+        if (!state?.suggestions.length) return false;
         
-        if (!state || state.suggestions.length === 0) {
-          return false;
-        }
+        const { key } = event;
+        const selection = view.state.selection.main;
+        const atCursor = selection.from === selection.to && selection.head === state.cursorPos;
         
-        // Tab - Accept suggestion
-        if (event.key === 'Tab') {
+        // Tab - Accept
+        if (key === 'Tab') {
           event.preventDefault();
           event.stopPropagation();
           
-          const suggestion = state.suggestions[state.currentIndex];
-          const insert = suggestion + (plugin.settings.addSpace ? ' ' : '');
+          const { text, isFuzzy, wordStart } = state.suggestions[state.currentIndex];
+          const from = isFuzzy ? wordStart : state.cursorPos;
+          const to = state.cursorPos;
+          const insert = text + (plugin.settings.addSpace ? ' ' : '');
           
           view.dispatch({
-            changes: {
-              from: state.cursorPos,
-              insert: insert,
-            },
-            selection: { anchor: state.cursorPos + insert.length },
+            changes: { from, to, insert },
+            selection: { anchor: from + insert.length },
             effects: ClearSuggestionsEffect.of(),
           });
           return true;
         }
         
-        // Arrow Right - Next suggestion (only if multiple suggestions)
-        if (event.key === 'ArrowRight' && state.suggestions.length > 1) {
-          const selection = view.state.selection.main;
-          // Only cycle if cursor is at the trigger position and no selection
-          if (selection.from === selection.to && selection.head === state.cursorPos) {
-            event.preventDefault();
-            event.stopPropagation();
-            view.dispatch({
-              effects: CycleSuggestionEffect.of(1),
-            });
-            return true;
-          }
-        }
-        
-        // Arrow Left - Previous suggestion (only if multiple suggestions)
-        if (event.key === 'ArrowLeft' && state.suggestions.length > 1) {
-          const selection = view.state.selection.main;
-          // Only cycle if cursor is at the trigger position and no selection
-          if (selection.from === selection.to && selection.head === state.cursorPos) {
-            event.preventDefault();
-            event.stopPropagation();
-            view.dispatch({
-              effects: CycleSuggestionEffect.of(-1),
-            });
-            return true;
-          }
-        }
-        
-        // Escape - Clear suggestions
-        if (event.key === 'Escape') {
+        // Arrow Right - Next (only at cursor)
+        if (key === 'ArrowRight' && atCursor && state.suggestions.length > 1) {
           event.preventDefault();
           event.stopPropagation();
-          view.dispatch({
-            effects: ClearSuggestionsEffect.of(),
-          });
+          view.dispatch({ effects: CycleSuggestionEffect.of(1) });
+          return true;
+        }
+        
+        // Arrow Left - Previous (only at cursor)
+        if (key === 'ArrowLeft' && atCursor && state.suggestions.length > 1) {
+          event.preventDefault();
+          event.stopPropagation();
+          view.dispatch({ effects: CycleSuggestionEffect.of(-1) });
+          return true;
+        }
+        
+        // Escape - Clear
+        if (key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          view.dispatch({ effects: ClearSuggestionsEffect.of() });
           return true;
         }
         
@@ -308,76 +286,47 @@ function createChangeListener(plugin) {
     class {
       constructor(view) {
         this.view = view;
+        this.timeout = null;
       }
 
       update(update) {
-        if (!plugin.settings.enabled || !update.view.hasFocus) {
-          return;
-        }
+        if (!plugin.settings.enabled || !update.view.hasFocus || !update.docChanged) return;
         
-        // Only trigger on actual document changes with typing
-        if (!update.docChanged) {
-          return;
-        }
-        
-        // Check for user input
-        let isUserInput = false;
-        for (const tr of update.transactions) {
-          if (tr.isUserEvent('input.type')) {
-            isUserInput = true;
-            break;
-          }
-        }
-        
-        if (!isUserInput) {
-          return;
-        }
+        // Check for typing
+        const isTyping = update.transactions.some(tr => tr.isUserEvent('input.type'));
+        if (!isTyping) return;
         
         const state = update.state;
-        const pos = state.selection.main.head;
+        const { selection, doc } = state;
         
-        // Don't trigger with multiple cursors
-        if (state.selection.ranges.length > 1) {
-          return;
-        }
+        // Single cursor, no selection
+        if (selection.ranges.length > 1 || selection.main.from !== selection.main.to) return;
         
-        // Don't trigger with selection
-        if (state.selection.main.from !== state.selection.main.to) {
-          return;
-        }
-        
-        const line = state.doc.lineAt(pos);
-        const lineText = line.text;
+        const pos = selection.main.head;
+        const line = doc.lineAt(pos);
         const cursorInLine = pos - line.from;
-        
-        const before = lineText.slice(0, cursorInLine);
-        const after = lineText.slice(cursorInLine);
+        const before = line.text.slice(0, cursorInLine);
+        const after = line.text.slice(cursorInLine);
         
         // Don't trigger mid-word
-        if (/^[\p{L}\p{N}]/u.test(after)) {
-          return;
-        }
+        if (/^[\p{L}\p{N}]/u.test(after)) return;
         
-        // Extract current word being typed
+        // Extract word
         const match = before.match(/[\p{L}][\p{L}\p{N}']*$/u);
-        if (!match) {
-          return;
-        }
-        
-        const word = match[0];
-        if (word.length < plugin.settings.minLength) {
-          return;
-        }
+        if (!match || match[0].length < plugin.settings.minLength) return;
         
         // Check code context
-        if (!plugin.settings.enableInCode && plugin.isInCodeContext(state, pos)) {
-          return;
-        }
+        if (!plugin.settings.enableInCode && plugin.isInCodeContext(state, pos)) return;
         
-        // Delay slightly to debounce rapid typing
-        setTimeout(() => {
-          plugin.updateSuggestions(update.view, word, pos);
+        // Debounce
+        clearTimeout(this.timeout);
+        this.timeout = setTimeout(() => {
+          plugin.updateSuggestions(update.view, match[0], pos, pos - match[0].length);
         }, 50);
+      }
+
+      destroy() {
+        clearTimeout(this.timeout);
       }
     }
   );
@@ -394,7 +343,6 @@ class TextAutocompletePlugin extends Plugin {
     this.trie = new Trie();
     await this.loadDictionary();
 
-    // Register CodeMirror 6 extensions
     this.registerEditorExtension([
       GhostTextState,
       createKeyHandler(this),
@@ -403,7 +351,6 @@ class TextAutocompletePlugin extends Plugin {
     ]);
 
     this.addSettingTab(new AutocompleteSettingTab(this.app, this));
-    console.log('Text Autocomplete (Ghost Text) loaded');
   }
 
   async loadSettings() {
@@ -416,123 +363,109 @@ class TextAutocompletePlugin extends Plugin {
 
   async loadDictionary() {
     try {
-      const pluginDir = `${this.app.vault.configDir}/plugins/${this.manifest.id}`;
-      const path = normalizePath(`${pluginDir}/words.txt`);
+      const path = normalizePath(`${this.app.vault.configDir}/plugins/${this.manifest.id}/words.txt`);
       const content = await this.app.vault.adapter.read(path);
-      for (const raw of content.split('\n')) {
-        const w = raw.trim();
-        if (w) this.trie.insert(w);
+      
+      for (const line of content.split('\n')) {
+        const word = line.trim();
+        if (word) this.trie.insert(word);
       }
-      console.log('Dictionary loaded:', this.trie.root.children.size, 'root nodes');
     } catch (e) {
-      console.error('Failed to load words.txt:', e);
+      console.error('Failed to load dictionary:', e);
     }
   }
 
   getSuggestions(prefix) {
-    const limit = this.settings.maxSuggestions * 2; // Get more for filtering
-    const exact = this.trie.search(prefix, limit);
-
-    if (exact.length >= this.settings.maxSuggestions) {
-      return exact.slice(0, this.settings.maxSuggestions);
-    }
-
-    const edits = this.allowedEdits(prefix);
-    const fuzzy = this.trie.searchFuzzy(prefix, edits, limit * 3);
-
-    const seen = new Set(exact.map(w => w.toLowerCase().normalize('NFC')));
-    const merged = [...exact];
+    const limit = this.settings.maxSuggestions;
+    const exact = this.trie.search(prefix, limit * 2);
     
-    for (const w of fuzzy) {
-      const k = w.toLowerCase().normalize('NFC');
-      if (!seen.has(k)) {
-        merged.push(w);
-        seen.add(k);
-        if (merged.length >= this.settings.maxSuggestions) break;
+    // Try fuzzy if not enough exact matches
+    if (exact.length < limit) {
+      const fuzzy = this.trie.searchFuzzy(prefix, this.settings.fuzzyEdits, limit * 3);
+      const seen = new Set(exact.map(w => w.toLowerCase()));
+      
+      for (const { word } of fuzzy) {
+        const lower = word.toLowerCase();
+        if (!seen.has(lower) && lower !== prefix.toLowerCase()) {
+          exact.push(word);
+          seen.add(lower);
+          if (exact.length >= limit) break;
+        }
       }
     }
-
-    return merged.slice(0, this.settings.maxSuggestions);
+    
+    return exact.slice(0, limit);
   }
 
-  updateSuggestions(view, prefix, cursorPos) {
-    const suggestions = this.getSuggestions(prefix);
+  updateSuggestions(view, prefix, cursorPos, wordStart) {
+    const words = this.getSuggestions(prefix);
+    const prefixLower = prefix.toLowerCase();
     
-    // Filter and prepare completions (only the part after the prefix)
-    const completions = suggestions
+    const suggestions = words
       .map(word => {
         const wordLower = word.toLowerCase();
-        const prefixLower = prefix.toLowerCase();
+        const matched = this.matchCase(word, prefix);
         
+        // Exact prefix match
         if (wordLower.startsWith(prefixLower) && word.length > prefix.length) {
-          // Match case of original prefix, return only the completion part
-          const matched = this.matchCase(word, prefix);
-          return matched.slice(prefix.length);
+          return {
+            text: matched.slice(prefix.length),
+            isFuzzy: false,
+            wordStart: cursorPos,
+          };
         }
+        
+        // Fuzzy match
+        if (wordLower !== prefixLower) {
+          return {
+            text: matched,
+            isFuzzy: true,
+            wordStart: wordStart,
+          };
+        }
+        
         return null;
       })
-      .filter(s => s && s.length > 0);
+      .filter(Boolean);
     
-    if (completions.length > 0) {
+    if (suggestions.length > 0) {
       view.dispatch({
         effects: SetSuggestionsEffect.of({
-          suggestions: completions,
+          suggestions,
           currentIndex: 0,
-          prefix: prefix,
-          cursorPos: cursorPos,
+          cursorPos,
         }),
       });
     }
   }
 
-  allowedEdits(q) {
-    const n = (q || '').toLowerCase().normalize('NFC').length;
-    if (n <= 4) return 1;
-    if (n <= 8) return 2;
-    return 3;
-  }
-
   matchCase(word, original) {
-    if (!original || !word) return word;
+    if (!original) return word;
     
-    // All uppercase
-    if (original === original.toUpperCase()) {
-      return word.toUpperCase();
-    }
-    
-    // First letter uppercase
+    if (original === original.toUpperCase()) return word.toUpperCase();
     if (original[0] === original[0].toUpperCase()) {
       return word[0].toUpperCase() + word.slice(1).toLowerCase();
     }
     
-    // All lowercase
     return word.toLowerCase();
   }
 
   isInCodeContext(state, pos) {
-    // Check code blocks
-    let inCodeBlock = false;
-    let currentLine = 0;
-    
-    const doc = state.doc;
+    const { doc } = state;
     const targetLine = doc.lineAt(pos).number;
     
+    // Check code blocks
+    let inCodeBlock = false;
     for (let i = 1; i <= targetLine; i++) {
-      const line = doc.line(i);
-      if (/^```/.test(line.text)) {
-        inCodeBlock = !inCodeBlock;
-      }
+      if (/^```/.test(doc.line(i).text)) inCodeBlock = !inCodeBlock;
     }
     
-    // Check inline code (backticks)
+    // Check inline code
     const line = doc.lineAt(pos);
-    const lineText = line.text;
-    const cursorInLine = pos - line.from;
-    const beforeInLine = lineText.slice(0, cursorInLine);
-    const backtickCount = (beforeInLine.match(/`/g) || []).length;
-    const inInlineCode = backtickCount % 2 === 1;
+    const beforeCursor = line.text.slice(0, pos - line.from);
+    const backticks = (beforeCursor.match(/`/g) || []).length;
     
-    return inCodeBlock || inInlineCode;
+    return inCodeBlock || backticks % 2 === 1;
   }
 }
 
@@ -550,75 +483,79 @@ class AutocompleteSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     
-    containerEl.createEl('h2', { text: 'Text Autocomplete Settings' });
-    
+    containerEl.createEl('h2', { text: 'Text Autocomplete' });
     containerEl.createEl('p', {
-      text: '💡 Ghost text controls: Tab to accept, ←/→ to cycle, Esc to dismiss',
+      text: '⌨️ Tab: accept | ←/→: cycle | Esc: dismiss',
       cls: 'setting-item-description',
     });
 
     new Setting(containerEl)
-      .setName('Enable autocomplete')
-      .setDesc('Toggle ghost text suggestions')
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.enabled)
-          .onChange(async (v) => {
-            this.plugin.settings.enabled = v;
-            await this.plugin.saveSettings();
-          }),
+      .setName('Enable')
+      .addToggle(t => t
+        .setValue(this.plugin.settings.enabled)
+        .onChange(async v => {
+          this.plugin.settings.enabled = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     new Setting(containerEl)
       .setName('Max suggestions')
-      .setDesc('Number of suggestions to cycle through (3–10)')
-      .addSlider((s) =>
-        s
-          .setLimits(3, 10, 1)
-          .setValue(this.plugin.settings.maxSuggestions)
-          .setDynamicTooltip()
-          .onChange(async (v) => {
-            this.plugin.settings.maxSuggestions = v;
-            await this.plugin.saveSettings();
-          }),
+      .setDesc('Number of suggestions to show')
+      .addSlider(s => s
+        .setLimits(3, 10, 1)
+        .setValue(this.plugin.settings.maxSuggestions)
+        .setDynamicTooltip()
+        .onChange(async v => {
+          this.plugin.settings.maxSuggestions = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     new Setting(containerEl)
       .setName('Min word length')
-      .setDesc('Characters before triggering suggestions (2–5)')
-      .addSlider((s) =>
-        s
-          .setLimits(2, 5, 1)
-          .setValue(this.plugin.settings.minLength)
-          .setDynamicTooltip()
-          .onChange(async (v) => {
-            this.plugin.settings.minLength = v;
-            await this.plugin.saveSettings();
-          }),
+      .setDesc('Minimum characters before triggering')
+      .addSlider(s => s
+        .setLimits(2, 5, 1)
+        .setValue(this.plugin.settings.minLength)
+        .setDynamicTooltip()
+        .onChange(async v => {
+          this.plugin.settings.minLength = v;
+          await this.plugin.saveSettings();
+        })
+      );
+
+    new Setting(containerEl)
+      .setName('Fuzzy match distance')
+      .setDesc('Maximum character edits for fuzzy matching (0 = disabled)')
+      .addSlider(s => s
+        .setLimits(0, 3, 1)
+        .setValue(this.plugin.settings.fuzzyEdits)
+        .setDynamicTooltip()
+        .onChange(async v => {
+          this.plugin.settings.fuzzyEdits = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     new Setting(containerEl)
       .setName('Add space after word')
-      .setDesc('Automatically add space when accepting suggestion')
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.addSpace)
-          .onChange(async (v) => {
-            this.plugin.settings.addSpace = v;
-            await this.plugin.saveSettings();
-          }),
+      .addToggle(t => t
+        .setValue(this.plugin.settings.addSpace)
+        .onChange(async v => {
+          this.plugin.settings.addSpace = v;
+          await this.plugin.saveSettings();
+        })
       );
 
     new Setting(containerEl)
       .setName('Enable in code blocks')
-      .setDesc('Show suggestions inside code blocks and inline code')
-      .addToggle((t) =>
-        t
-          .setValue(this.plugin.settings.enableInCode)
-          .onChange(async (v) => {
-            this.plugin.settings.enableInCode = v;
-            await this.plugin.saveSettings();
-          }),
+      .addToggle(t => t
+        .setValue(this.plugin.settings.enableInCode)
+        .onChange(async v => {
+          this.plugin.settings.enableInCode = v;
+          await this.plugin.saveSettings();
+        })
       );
   }
 }

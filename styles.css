@@ -1,111 +1,9 @@
 /* ============================================================================
-   EditorSuggest popup (scoped via .autocomplete-match presence)
+   Text Autocomplete Plugin Styles
    ============================================================================ */
 
-@keyframes ta-pop {
-  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
-  to   { opacity: 1; transform: translateY(0)     scale(1); }
-}
-
-/* Scope */
-.suggestion-container:has(.autocomplete-match) {
-  z-index: var(--layer-popover, 9999);
-  background: var(--background-primary);
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-m, 6px);
-  box-shadow: var(--shadow-s);
-  min-width: 200px;
-  max-width: 320px;
-  overflow: hidden;
-  animation: ta-pop 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  font-family: var(--font-interface);
-  will-change: opacity, transform;
-  backface-visibility: hidden;
-  transform: translateZ(0);
-}
-
-.suggestion-container:has(.autocomplete-match).is-closing {
-  animation: ta-pop 0.1s ease-out reverse forwards;
-}
-
-/* List */
-.suggestion-container:has(.autocomplete-match) .suggestion {
-  margin: 0;
-  padding: 4px;
-  max-height: 300px;
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--background-modifier-border) transparent;
-}
-
-/* Scrollbars (WebKit) */
-.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar { width: 8px; }
-.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar-track { background: transparent; }
-.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar-thumb {
-  background: var(--background-modifier-border);
-  border-radius: 4px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar-thumb:hover {
-  background: var(--text-faint);
-}
-
-/* Empty state */
-.suggestion-container:has(.autocomplete-match) .suggestion:empty::before {
-  content: 'No suggestions';
-  display: block;
-  padding: 12px;
-  color: var(--text-faint);
-  font-style: italic;
-  text-align: center;
-}
-
-/* Items */
-.suggestion-container:has(.autocomplete-match) .suggestion-item {
-  padding: 6px 12px;
-  cursor: pointer;
-  border-radius: var(--radius-s, 4px);
-  transition: background-color 0.08s ease, color 0.08s ease;
-  font-size: var(--font-ui-small, 13px);
-  color: var(--text-normal);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.4;
-  hyphens: auto;
-  contain: layout style paint;
-}
-.suggestion-container:has(.autocomplete-match) .suggestion-item:hover {
-  background-color: var(--background-modifier-hover);
-}
-.suggestion-container:has(.autocomplete-match) .suggestion-item:focus {
-  outline: 2px solid var(--interactive-accent);
-  outline-offset: -2px;
-}
-.suggestion-container:has(.autocomplete-match) .suggestion-item.is-selected {
-  background-color: var(--interactive-accent);
-  color: var(--text-on-accent);
-}
-
-/* Match highlight (your span) */
-.autocomplete-match { font-weight: 600; }
-.suggestion-container:has(.autocomplete-match) .suggestion-item.is-selected .autocomplete-match {
-  text-decoration: underline;
-  text-decoration-thickness: 1.5px;
-  text-underline-offset: 2px;
-}
-
-/* Theme tweaks */
-.theme-dark .suggestion-container:has(.autocomplete-match) {
-  box-shadow: 0 8px 24px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.3);
-}
-.theme-light .suggestion-container:has(.autocomplete-match) {
-  box-shadow: 0 4px 16px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.06);
-}
-
 /* ============================================================================
-   Ghost Text Autocomplete Styles
+   Ghost Text - Core Styles
    ============================================================================ */
 
 .cm-ghost-text {
@@ -115,15 +13,47 @@
   user-select: none;
   font-style: normal;
   position: relative;
+  display: inline;
+  white-space: pre;
 }
 
-/* Subtle pulse animation on appear */
+/* Fuzzy match variant */
+.cm-ghost-fuzzy {
+  opacity: 0.55;
+}
+
+/* Fuzzy indicator arrow */
+.cm-ghost-arrow {
+  color: var(--text-accent);
+  opacity: 0.7;
+  font-size: 0.85em;
+  margin-right: 2px;
+  font-weight: 600;
+}
+
+/* ============================================================================
+   Animations
+   ============================================================================ */
+
 @keyframes ghost-appear {
   from {
     opacity: 0;
+    transform: translateX(2px);
   }
   to {
     opacity: 0.45;
+    transform: translateX(0);
+  }
+}
+
+@keyframes ghost-fuzzy-appear {
+  from {
+    opacity: 0;
+    transform: translateX(2px);
+  }
+  to {
+    opacity: 0.55;
+    transform: translateX(0);
   }
 }
 
@@ -131,83 +61,384 @@
   animation: ghost-appear 0.15s ease-out;
 }
 
-/* Theme adjustments */
+.cm-ghost-fuzzy {
+  animation: ghost-fuzzy-appear 0.15s ease-out;
+}
+
+/* Subtle pulse for fuzzy (optional - can be disabled) */
+@keyframes fuzzy-pulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 0.7; }
+}
+
+.cm-ghost-fuzzy.cm-ghost-pulse {
+  animation: fuzzy-pulse 2s ease-in-out infinite;
+}
+
+/* ============================================================================
+   Theme Variants - Dark
+   ============================================================================ */
+
 .theme-dark .cm-ghost-text {
   opacity: 0.4;
   color: var(--text-muted);
 }
+
+.theme-dark .cm-ghost-fuzzy {
+  opacity: 0.5;
+}
+
+.theme-dark .cm-ghost-arrow {
+  color: var(--text-accent-hover);
+  opacity: 0.8;
+}
+
+/* ============================================================================
+   Theme Variants - Light
+   ============================================================================ */
 
 .theme-light .cm-ghost-text {
   opacity: 0.5;
   color: var(--text-faint);
 }
 
-/* High contrast mode - make more visible */
+.theme-light .cm-ghost-fuzzy {
+  opacity: 0.6;
+}
+
+.theme-light .cm-ghost-arrow {
+  color: var(--text-accent);
+  opacity: 0.75;
+}
+
+/* ============================================================================
+   Accessibility - High Contrast
+   ============================================================================ */
+
 @media (prefers-contrast: high) {
   .cm-ghost-text {
-    opacity: 0.65;
+    opacity: 0.7;
     text-decoration: underline;
     text-decoration-style: dotted;
+    text-decoration-color: var(--text-faint);
     text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
+  }
+
+  .cm-ghost-fuzzy {
+    opacity: 0.8;
+    text-decoration-style: dashed;
+  }
+
+  .cm-ghost-arrow {
+    opacity: 1;
+    font-weight: 700;
+  }
+
+  .theme-dark .cm-ghost-text {
+    opacity: 0.75;
+    color: var(--text-normal);
+  }
+
+  .theme-light .cm-ghost-text {
+    opacity: 0.8;
   }
 }
 
-/* Reduced motion - no animation */
+/* ============================================================================
+   Accessibility - Reduced Motion
+   ============================================================================ */
+
 @media (prefers-reduced-motion: reduce) {
-  .cm-ghost-text {
-    animation: none;
+  .cm-ghost-text,
+  .cm-ghost-fuzzy,
+  .cm-ghost-pulse {
+    animation: none !important;
+    transition: none !important;
   }
 }
 
-/* Print - hide completely */
-@media print {
-  .cm-ghost-text {
-    display: none !important;
-  }
-}
+/* ============================================================================
+   Mobile & Responsive
+   ============================================================================ */
 
-/* Mobile responsiveness */
 @media (max-width: 768px) {
   .cm-ghost-text {
     opacity: 0.5;
   }
+
+  .cm-ghost-fuzzy {
+    opacity: 0.6;
+  }
+
+  .cm-ghost-arrow {
+    font-size: 0.9em;
+    margin-right: 1px;
+  }
 }
 
-/* Ensure ghost text doesn't interfere with editor */
+@media (max-width: 480px) {
+  .cm-ghost-text {
+    opacity: 0.55;
+  }
+
+  .cm-ghost-fuzzy {
+    opacity: 0.65;
+  }
+
+  .theme-dark .cm-ghost-text {
+    opacity: 0.5;
+  }
+
+  .theme-light .cm-ghost-text {
+    opacity: 0.6;
+  }
+}
+
+/* ============================================================================
+   Print
+   ============================================================================ */
+
+@media print {
+  .cm-ghost-text,
+  .cm-ghost-fuzzy,
+  .cm-ghost-arrow {
+    display: none !important;
+  }
+}
+
+/* ============================================================================
+   Editor Integration
+   ============================================================================ */
+
+/* Ensure ghost text doesn't break layout */
 .cm-line .cm-ghost-text {
   display: inline;
   white-space: pre;
+  line-height: inherit;
+  font-family: inherit;
+  font-size: inherit;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .suggestion-container:has(.autocomplete-match) { min-width: 180px; max-width: 280px; }
-  .suggestion-container:has(.autocomplete-match) .suggestion { max-height: 250px; }
-  .suggestion-container:has(.autocomplete-match) .suggestion-item {
-    padding: 10px 14px;
-    font-size: var(--font-ui-medium, 14px);
-    min-height: 36px;
-    display: flex;
-    align-items: center;
-  }
-}
-@media (max-width: 480px) {
-  .suggestion-container:has(.autocomplete-match) { min-width: 160px; max-width: 240px; font-size: 15px; }
-  .suggestion-container:has(.autocomplete-match) .suggestion { max-height: 200px; }
+/* Prevent selection issues */
+.cm-ghost-text::selection {
+  background: transparent;
 }
 
-/* Accessibility & print */
-@media (prefers-contrast: high) {
-  .suggestion-container:has(.autocomplete-match) { border-width: 2px; }
-  .suggestion-container:has(.autocomplete-match) .suggestion-item.is-selected {
-    outline: 2px solid var(--text-on-accent);
-    outline-offset: -2px;
+.cm-ghost-text::-moz-selection {
+  background: transparent;
+}
+
+/* ============================================================================
+   Focus States
+   ============================================================================ */
+
+/* Make ghost text more subtle when editor loses focus */
+.cm-editor:not(.cm-focused) .cm-ghost-text {
+  opacity: 0.25;
+}
+
+.cm-editor:not(.cm-focused) .cm-ghost-fuzzy {
+  opacity: 0.3;
+}
+
+.cm-editor:not(.cm-focused) .cm-ghost-arrow {
+  opacity: 0.4;
+}
+
+/* ============================================================================
+   Special Cases
+   ============================================================================ */
+
+/* In code blocks - slightly different styling */
+.cm-line.HyperMD-codeblock .cm-ghost-text {
+  font-family: var(--font-monospace);
+  opacity: 0.35;
+}
+
+/* In headers - match header weight */
+.cm-line.HyperMD-header .cm-ghost-text {
+  font-weight: inherit;
+}
+
+/* In lists - proper alignment */
+.cm-line.HyperMD-list-line .cm-ghost-text {
+  vertical-align: baseline;
+}
+
+/* ============================================================================
+   Custom Arrow Variants (Uncomment to use)
+   ============================================================================ */
+
+/* Alternative arrow styles - uncomment one to use */
+
+/* Curved arrow */
+/*
+.cm-ghost-arrow::before {
+  content: '↪';
+}
+*/
+
+/* Replacement symbol */
+/*
+.cm-ghost-arrow::before {
+  content: '⟲';
+}
+*/
+
+/* Edit symbol */
+/*
+.cm-ghost-arrow::before {
+  content: '✎';
+}
+*/
+
+/* Forward arrow (default) */
+/*
+.cm-ghost-arrow::before {
+  content: '→';
+}
+*/
+
+/* ============================================================================
+   Advanced Customization Variables
+   ============================================================================ */
+
+:root {
+  --ghost-text-opacity: 0.45;
+  --ghost-fuzzy-opacity: 0.55;
+  --ghost-arrow-opacity: 0.7;
+  --ghost-animation-duration: 0.15s;
+}
+
+.theme-dark {
+  --ghost-text-opacity: 0.4;
+  --ghost-fuzzy-opacity: 0.5;
+  --ghost-arrow-opacity: 0.8;
+}
+
+.theme-light {
+  --ghost-text-opacity: 0.5;
+  --ghost-fuzzy-opacity: 0.6;
+  --ghost-arrow-opacity: 0.75;
+}
+
+/* Apply custom properties (optional override) */
+/*
+.cm-ghost-text {
+  opacity: var(--ghost-text-opacity);
+  animation-duration: var(--ghost-animation-duration);
+}
+
+.cm-ghost-fuzzy {
+  opacity: var(--ghost-fuzzy-opacity);
+}
+
+.cm-ghost-arrow {
+  opacity: var(--ghost-arrow-opacity);
+}
+*/
+
+/* ============================================================================
+   Debug Mode (Uncomment to see ghost text boundaries)
+   ============================================================================ */
+
+/*
+.cm-ghost-text {
+  outline: 1px dashed red;
+  background: rgba(255, 0, 0, 0.05);
+}
+
+.cm-ghost-fuzzy {
+  outline: 1px dashed blue;
+  background: rgba(0, 0, 255, 0.05);
+}
+
+.cm-ghost-arrow {
+  outline: 1px solid green;
+}
+*/
+
+/* ============================================================================
+   Performance Optimizations
+   ============================================================================ */
+
+.cm-ghost-text,
+.cm-ghost-fuzzy,
+.cm-ghost-arrow {
+  will-change: opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
+/* ============================================================================
+   RTL Language Support
+   ============================================================================ */
+
+[dir="rtl"] .cm-ghost-arrow {
+  margin-right: 0;
+  margin-left: 2px;
+  transform: scaleX(-1);
+}
+
+[dir="rtl"] .cm-ghost-text {
+  direction: rtl;
+}
+
+/* ============================================================================
+   Color Scheme Preferences
+   ============================================================================ */
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.theme-light) .cm-ghost-text {
+    opacity: 0.4;
+    color: var(--text-muted);
+  }
+
+  :root:not(.theme-light) .cm-ghost-fuzzy {
+    opacity: 0.5;
+  }
+
+  :root:not(.theme-light) .cm-ghost-arrow {
+    opacity: 0.8;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .suggestion-container:has(.autocomplete-match) { animation: none; }
-  .suggestion-container:has(.autocomplete-match) .suggestion-item { transition: none; }
+
+@media (prefers-color-scheme: light) {
+  :root:not(.theme-dark) .cm-ghost-text {
+    opacity: 0.5;
+  }
+
+  :root:not(.theme-dark) .cm-ghost-fuzzy {
+    opacity: 0.6;
+  }
+
+  :root:not(.theme-dark) .cm-ghost-arrow {
+    opacity: 0.75;
+  }
 }
-@media print {
-  .suggestion-container:has(.autocomplete-match) { display: none !important; }
+
+/* ============================================================================
+   Obsidian Theme Compatibility
+   ============================================================================ */
+
+/* Minimal theme */
+body.minimal-theme .cm-ghost-text {
+  font-family: var(--font-text);
 }
+
+/* California Coast theme */
+body.theme-california-coast .cm-ghost-text {
+  color: var(--text-muted);
+}
+
+/* Things theme */
+body.theme-things .cm-ghost-arrow {
+  color: var(--interactive-accent);
+}
+
+/* ============================================================================
+   Custom Theme Overrides (User customization area)
+   ============================================================================ */
+
+/* Add your custom overrides below this line */

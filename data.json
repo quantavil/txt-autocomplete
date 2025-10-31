@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "maxSuggestions": 4,
+  "maxSuggestions": 5,
   "minLength": 3,
   "addSpace": true,
   "enableInCode": false,
