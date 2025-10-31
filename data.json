@@ -1,8 +1,10 @@
 {
   "enabled": true,
-  "maxSuggestions": 5,
-  "minWordLength": 3,
+  "maxSuggestions": 4,
+  "minLength": 3,
   "addSpace": true,
+  "enableInCode": false,
+  "minWordLength": 3,
   "fuzzyMatch": true,
   "learnFromDocument": true,
   "learnFromVault": false,
