@@ -1,0 +1,126 @@
+/* ============================================================================
+   AUTOCOMPLETE DROPDOWN
+   ============================================================================ */
+
+.autocomplete-dropdown {
+    position: absolute;
+    z-index: 9999;
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    overflow: hidden;
+    min-width: 200px;
+    max-width: 300px;
+    animation: autocomplete-fade-in 0.15s ease-out;
+}
+
+@keyframes autocomplete-fade-in {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.autocomplete-list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.autocomplete-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    transition: background-color 0.1s ease;
+    font-size: 14px;
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.autocomplete-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.autocomplete-item.is-selected {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.autocomplete-match {
+    font-weight: 600;
+    color: inherit;
+}
+
+/* Scrollbar styling */
+.autocomplete-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.autocomplete-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.autocomplete-list::-webkit-scrollbar-thumb {
+    background: var(--background-modifier-border);
+    border-radius: 4px;
+}
+
+.autocomplete-list::-webkit-scrollbar-thumb:hover {
+    background: var(--text-faint);
+}
+
+/* ============================================================================
+   SETTINGS
+   ============================================================================ */
+
+.custom-words-container {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.custom-words-container .setting-item {
+    border-top: none;
+    padding: 8px 0;
+}
+
+.custom-words-container .setting-item-name {
+    font-family: var(--font-monospace);
+    color: var(--text-accent);
+}
+
+/* ============================================================================
+   RESPONSIVE & DARK MODE
+   ============================================================================ */
+
+.theme-dark .autocomplete-dropdown {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+.theme-light .autocomplete-dropdown {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Mobile optimization */
+@media (max-width: 768px) {
+    .autocomplete-dropdown {
+        min-width: 180px;
+        max-width: 250px;
+    }
+    
+    .autocomplete-item {
+        padding: 10px 14px;
+        font-size: 15px;
+    }
+}
