@@ -18,7 +18,7 @@ class Trie {
 
     insert(word) {
         if (!word || word.length < 2) return;
-        
+
         let node = this.root;
         for (const char of word.toLowerCase()) {
             if (!node.children.has(char)) {
@@ -54,16 +54,16 @@ class Trie {
 
     search(prefix, limit = 10) {
         if (!prefix) return [];
-        
+
         let node = this.root;
         prefix = prefix.toLowerCase();
-        
+
         // Navigate to prefix node
         for (const char of prefix) {
             node = node.children.get(char);
             if (!node) return [];
         }
-        
+
         // Collect words alphabetically
         const results = [];
         this._collect(node, prefix, results, limit);
@@ -72,9 +72,9 @@ class Trie {
 
     _collect(node, prefix, results, limit) {
         if (results.length >= limit) return;
-        
+
         if (node.isWord) results.push(prefix);
-        
+
         // Process children in alphabetical order
         const chars = Array.from(node.children.keys()).sort();
         for (const char of chars) {
@@ -99,12 +99,12 @@ class AutocompleteUI {
     show(suggestions, editor, wordStart, currentWord) {
         this.hide();
         if (!suggestions.length) return;
-        
+
         this.suggestions = suggestions;
         this.selectedIndex = 0;
         this.wordStart = wordStart;
         this.currentWord = currentWord;
-        
+
         this.dropdown = this._create(suggestions, editor);
         this._position(editor);
     }
@@ -112,24 +112,24 @@ class AutocompleteUI {
     _create(suggestions, editor) {
         const dropdown = createDiv({ cls: 'autocomplete-dropdown' });
         const list = dropdown.createEl('ul', { cls: 'autocomplete-list' });
-        
+
         suggestions.forEach((word, index) => {
-            const item = list.createEl('li', { 
+            const item = list.createEl('li', {
                 cls: 'autocomplete-item' + (index === 0 ? ' is-selected' : ''),
             });
-            
+
             // Highlight prefix match
             const prefix = this.currentWord.toLowerCase();
             const matchLen = prefix.length;
             item.innerHTML = `<span class="autocomplete-match">${word.substring(0, matchLen)}</span>${word.substring(matchLen)}`;
-            
+
             item.onmouseenter = () => this.select(index);
             item.onmousedown = (e) => {
                 e.preventDefault();
                 this.accept(editor);
             };
         });
-        
+
         document.body.appendChild(dropdown);
         return dropdown;
     }
@@ -137,11 +137,11 @@ class AutocompleteUI {
     _position(editor) {
         const coords = editor.cm.coordsAtPos(editor.posToOffset(editor.getCursor()));
         if (!coords) return;
-        
+
         const { top, bottom, left } = coords;
         const { innerHeight, innerWidth } = window;
         const { offsetHeight, offsetWidth } = this.dropdown;
-        
+
         this.dropdown.style.top = `${(bottom + offsetHeight > innerHeight ? top - offsetHeight : bottom) + window.scrollY}px`;
         this.dropdown.style.left = `${Math.min(left, innerWidth - offsetWidth - 10) + window.scrollX}px`;
     }
@@ -156,7 +156,7 @@ class AutocompleteUI {
     move(direction) {
         if (!this.dropdown) return;
         const max = this.suggestions.length;
-        this.selectedIndex = direction === 'down' 
+        this.selectedIndex = direction === 'down'
             ? (this.selectedIndex + 1) % max
             : (this.selectedIndex - 1 + max) % max;
         this.select(this.selectedIndex);
@@ -164,10 +164,10 @@ class AutocompleteUI {
 
     accept(editor) {
         if (!this.dropdown) return false;
-        
+
         const word = this.suggestions[this.selectedIndex];
         const suffix = this.plugin.settings.addSpace ? ' ' : '';
-        
+
         editor.replaceRange(word + suffix, this.wordStart, editor.getCursor());
         this.hide();
         return true;
@@ -197,18 +197,18 @@ const DEFAULT_SETTINGS = {
 class TextAutocompletePlugin extends Plugin {
     async onload() {
         await this.loadSettings();
-        
+
         this.trie = new Trie();
         this.ui = new AutocompleteUI(this);
         this.timer = null;
         this.docWords = new Set();
-        
+
         await this.loadDictionary();
-        
+
         this.addSettingTab(new AutocompleteSettingTab(this.app, this));
         this.registerEditorEvents();
         this.registerKeyHandlers();
-        
+
         console.log('Text Autocomplete loaded');
     }
 
@@ -227,7 +227,7 @@ class TextAutocompletePlugin extends Plugin {
     async loadDictionary() {
         // Load custom words
         this.settings.customWords.forEach(word => this.trie.insert(word));
-        
+
         // Load words.txt
         try {
             const path = `${this.manifest.dir}/words.txt`;
@@ -246,7 +246,7 @@ class TextAutocompletePlugin extends Plugin {
         this.registerEvent(
             this.app.workspace.on('editor-change', (editor) => {
                 if (!this.settings.enabled) return;
-                
+
                 clearTimeout(this.timer);
                 this.timer = setTimeout(() => this.process(editor), this.settings.delay);
             })
@@ -262,7 +262,7 @@ class TextAutocompletePlugin extends Plugin {
     registerKeyHandlers() {
         this.registerDomEvent(document, 'keydown', (e) => {
             if (!this.ui.dropdown) return;
-            
+
             const handlers = {
                 'ArrowDown': () => this.ui.move('down'),
                 'ArrowUp': () => this.ui.move('up'),
@@ -270,7 +270,7 @@ class TextAutocompletePlugin extends Plugin {
                 'Tab': () => this.ui.accept(this.getEditor()),
                 'Escape': () => this.ui.hide()
             };
-            
+
             const handler = handlers[e.key];
             if (handler && handler()) e.preventDefault();
         }, true);
@@ -285,18 +285,18 @@ class TextAutocompletePlugin extends Plugin {
         const line = editor.getLine(cursor.line);
         const before = line.substring(0, cursor.ch);
         const after = line.substring(cursor.ch);
-        
+
         // Skip if in code block or middle of word
         if (!this.settings.enableInCode && this.isInCode(editor, cursor)) return this.ui.hide();
         if (/^[a-zA-Z0-9]/.test(after)) return this.ui.hide();
-        
+
         // Extract current word
         const match = before.match(/[a-zA-Z][a-zA-Z0-9']*$/);
         if (!match || match[0].length < this.settings.minLength) return this.ui.hide();
-        
+
         const word = match[0];
         const suggestions = this.getSuggestions(word);
-        
+
         if (suggestions.length) {
             const wordStart = { line: cursor.line, ch: cursor.ch - word.length };
             this.ui.show(suggestions, editor, wordStart, word);
@@ -307,19 +307,34 @@ class TextAutocompletePlugin extends Plugin {
 
     getSuggestions(word) {
         const lower = word.toLowerCase();
-        const trie = this.trie.search(word, this.settings.maxSuggestions * 2)
-            .filter(w => w !== lower);
-        
-        // Add document words
+
+        // Get all matching words from trie
+        const allMatches = this.trie.search(word, this.settings.maxSuggestions * 2);
+
+        // Separate exact match from other matches
+        const exactMatch = allMatches.find(w => w === lower);
+        const otherMatches = allMatches.filter(w => w !== lower);
+
+        // Get document words (excluding exact match)
         const doc = Array.from(this.docWords)
-            .filter(w => w.toLowerCase().startsWith(lower) && w.toLowerCase() !== lower)
+            .filter(w => {
+                const wLower = w.toLowerCase();
+                return wLower.startsWith(lower) && wLower !== lower;
+            })
             .sort()
             .slice(0, 3);
-        
-        // Combine and deduplicate
-        const combined = [...new Set([...doc, ...trie])];
-        
-        // Match case
+
+        // Combine: exact match FIRST, then doc words, then dictionary words
+        let combined;
+        if (exactMatch) {
+            // Put exact match at position 0
+            combined = [exactMatch, ...new Set([...doc, ...otherMatches])];
+        } else {
+            // No exact match found
+            combined = [...new Set([...doc, ...otherMatches])];
+        }
+
+        // Match case and limit to max suggestions
         return combined
             .slice(0, this.settings.maxSuggestions)
             .map(w => this.matchCase(w, word));
@@ -336,7 +351,7 @@ class TextAutocompletePlugin extends Plugin {
     isInCode(editor, cursor) {
         const lines = editor.getValue().split('\n');
         let inBlock = false;
-        
+
         for (let i = 0; i <= cursor.line; i++) {
             if (/^```/.test(lines[i])) inBlock = !inBlock;
             if (i === cursor.line) {
@@ -365,7 +380,7 @@ class TextAutocompletePlugin extends Plugin {
     async addWord(word) {
         word = word.trim();
         if (!word || this.settings.customWords.includes(word)) return;
-        
+
         this.settings.customWords.push(word);
         this.trie.insert(word);
         await this.saveSettings();
@@ -374,7 +389,7 @@ class TextAutocompletePlugin extends Plugin {
     async removeWord(word) {
         const index = this.settings.customWords.indexOf(word);
         if (index === -1) return;
-        
+
         this.settings.customWords.splice(index, 1);
         this.trie.remove(word);
         await this.saveSettings();
@@ -394,9 +409,9 @@ class AutocompleteSettingTab extends PluginSettingTab {
     display() {
         const { containerEl } = this;
         containerEl.empty();
-        
+
         containerEl.createEl('h2', { text: 'Text Autocomplete Settings' });
-        
+
         new Setting(containerEl)
             .setName('Enable autocomplete')
             .addToggle(t => t.setValue(this.plugin.settings.enabled)
@@ -405,7 +420,7 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     if (!v) this.plugin.ui.hide();
                     await this.plugin.saveSettings();
                 }));
-        
+
         new Setting(containerEl)
             .setName('Max suggestions')
             .setDesc('3-10 suggestions')
@@ -416,7 +431,7 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     this.plugin.settings.maxSuggestions = v;
                     await this.plugin.saveSettings();
                 }));
-        
+
         new Setting(containerEl)
             .setName('Min word length')
             .setDesc('2-5 characters before triggering')
@@ -427,7 +442,7 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     this.plugin.settings.minLength = v;
                     await this.plugin.saveSettings();
                 }));
-        
+
         new Setting(containerEl)
             .setName('Trigger delay (ms)')
             .setDesc('0-500ms delay')
@@ -438,7 +453,7 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     this.plugin.settings.delay = v;
                     await this.plugin.saveSettings();
                 }));
-        
+
         new Setting(containerEl)
             .setName('Add space after word')
             .addToggle(t => t.setValue(this.plugin.settings.addSpace)
@@ -446,7 +461,7 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     this.plugin.settings.addSpace = v;
                     await this.plugin.saveSettings();
                 }));
-        
+
         new Setting(containerEl)
             .setName('Enable in code blocks')
             .addToggle(t => t.setValue(this.plugin.settings.enableInCode)
@@ -454,10 +469,10 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     this.plugin.settings.enableInCode = v;
                     await this.plugin.saveSettings();
                 }));
-        
+
         // Custom words
         containerEl.createEl('h3', { text: 'Custom Dictionary' });
-        
+
         let input;
         new Setting(containerEl)
             .setName('Add word')
@@ -477,10 +492,10 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     input.setValue('');
                     this.display();
                 }));
-        
+
         if (this.plugin.settings.customWords.length) {
             const container = containerEl.createDiv('custom-words');
-            
+
             this.plugin.settings.customWords.forEach(word => {
                 new Setting(container)
                     .setName(word)
@@ -491,7 +506,7 @@ class AutocompleteSettingTab extends PluginSettingTab {
                             this.display();
                         }));
             });
-            
+
             new Setting(containerEl)
                 .setName('Clear all')
                 .addButton(b => b.setButtonText('Clear')
