@@ -1,218 +1,138 @@
 /* ============================================================================
-   AUTOCOMPLETE DROPDOWN
+   EditorSuggest popup (scoped via .autocomplete-match presence)
    ============================================================================ */
 
-.autocomplete-dropdown {
-	position: absolute;
-	z-index: var(--layer-popover, 9999);
-	background: var(--background-primary);
-	border: 1px solid var(--background-modifier-border);
-	border-radius: var(--radius-m, 6px);
-	box-shadow: var(--shadow-s);
-	min-width: 200px;
-	max-width: 320px;
-	overflow: hidden;
-	animation: autocomplete-appear 0.12s cubic-bezier(0.16, 1, 0.3, 1);
-	font-family: var(--font-interface);
-	user-select: none;
-	-webkit-user-select: none;
-	-moz-user-select: none;
-	/* GPU acceleration for smooth animations */
-	will-change: opacity, transform;
-	backface-visibility: hidden;
-	-webkit-backface-visibility: hidden;
-	transform: translateZ(0);
-	-webkit-transform: translateZ(0);
+@keyframes ta-pop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
 }
 
-@keyframes autocomplete-appear {
-	from {
-		opacity: 0;
-		transform: translateY(-8px) scale(0.96);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0) scale(1);
-	}
+/* Scope */
+.suggestion-container:has(.autocomplete-match) {
+  z-index: var(--layer-popover, 9999);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m, 6px);
+  box-shadow: var(--shadow-s);
+  min-width: 200px;
+  max-width: 320px;
+  overflow: hidden;
+  animation: ta-pop 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+  font-family: var(--font-interface);
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
-.autocomplete-dropdown.is-closing {
-	animation: autocomplete-disappear 0.1s ease-out forwards;
+.suggestion-container:has(.autocomplete-match).is-closing {
+  animation: ta-pop 0.1s ease-out reverse forwards;
 }
 
-@keyframes autocomplete-disappear {
-	to {
-		opacity: 0;
-		transform: translateY(-4px) scale(0.98);
-	}
+/* List */
+.suggestion-container:has(.autocomplete-match) .suggestion {
+  margin: 0;
+  padding: 4px;
+  max-height: 300px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--background-modifier-border) transparent;
 }
 
-/* List container */
-.autocomplete-list {
-	list-style: none;
-	margin: 0;
-	padding: 4px;
-	max-height: 300px;
-	overflow-y: auto;
-	overflow-x: hidden;
-	scrollbar-width: thin;
-	scrollbar-color: var(--background-modifier-border) transparent;
+/* Scrollbars (WebKit) */
+.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar { width: 8px; }
+.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar-track { background: transparent; }
+.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.suggestion-container:has(.autocomplete-match) .suggestion::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
 }
 
-.autocomplete-list::-webkit-scrollbar {
-	width: 8px;
+/* Empty state */
+.suggestion-container:has(.autocomplete-match) .suggestion:empty::before {
+  content: 'No suggestions';
+  display: block;
+  padding: 12px;
+  color: var(--text-faint);
+  font-style: italic;
+  text-align: center;
 }
 
-.autocomplete-list::-webkit-scrollbar-track {
-	background: transparent;
+/* Items */
+.suggestion-container:has(.autocomplete-match) .suggestion-item {
+  padding: 6px 12px;
+  cursor: pointer;
+  border-radius: var(--radius-s, 4px);
+  transition: background-color 0.08s ease, color 0.08s ease;
+  font-size: var(--font-ui-small, 13px);
+  color: var(--text-normal);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  hyphens: auto;
+  contain: layout style paint;
+}
+.suggestion-container:has(.autocomplete-match) .suggestion-item:hover {
+  background-color: var(--background-modifier-hover);
+}
+.suggestion-container:has(.autocomplete-match) .suggestion-item:focus {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+.suggestion-container:has(.autocomplete-match) .suggestion-item.is-selected {
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
 }
 
-.autocomplete-list::-webkit-scrollbar-thumb {
-	background: var(--background-modifier-border);
-	border-radius: 4px;
-	border: 2px solid transparent;
-	background-clip: padding-box;
+/* Match highlight (your span) */
+.autocomplete-match { font-weight: 600; }
+.suggestion-container:has(.autocomplete-match) .suggestion-item.is-selected .autocomplete-match {
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 2px;
 }
 
-.autocomplete-list::-webkit-scrollbar-thumb:hover {
-	background: var(--text-faint);
-	background-clip: padding-box;
+/* Theme tweaks */
+.theme-dark .suggestion-container:has(.autocomplete-match) {
+  box-shadow: 0 8px 24px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.3);
+}
+.theme-light .suggestion-container:has(.autocomplete-match) {
+  box-shadow: 0 4px 16px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.06);
 }
 
-.autocomplete-list:empty::before {
-	content: 'No suggestions';
-	display: block;
-	padding: 12px;
-	color: var(--text-faint);
-	font-style: italic;
-	text-align: center;
-}
-
-/* Individual suggestion items */
-.autocomplete-item {
-	padding: 6px 12px;
-	cursor: pointer;
-	border-radius: var(--radius-s, 4px);
-	transition: background-color 0.08s ease, color 0.08s ease;
-	font-size: var(--font-ui-small, 13px);
-	color: var(--text-normal);
-	white-space: nowrap;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	line-height: 1.4;
-	word-break: break-word;
-	hyphens: auto;
-	user-select: none;
-	-webkit-user-select: none;
-	contain: layout style paint;
-}
-
-.autocomplete-item:hover {
-	background-color: var(--background-modifier-hover);
-}
-
-.autocomplete-item:focus {
-	outline: 2px solid var(--interactive-accent);
-	outline-offset: -2px;
-}
-
-.autocomplete-item.is-selected {
-	background-color: var(--interactive-accent);
-	color: var(--text-on-accent);
-}
-
-/* Highlighted prefix match */
-.autocomplete-match {
-	font-weight: 600;
-	opacity: 1;
-}
-
-.autocomplete-item.is-selected .autocomplete-match {
-	text-decoration: underline;
-	text-decoration-thickness: 1.5px;
-	text-underline-offset: 2px;
-}
-
-/* ============================================================================
-   THEME-SPECIFIC ADJUSTMENTS
-   ============================================================================ */
-
-.theme-dark .autocomplete-dropdown {
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), 
-				0 2px 6px rgba(0, 0, 0, 0.3);
-}
-
-.theme-light .autocomplete-dropdown {
-	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1), 
-				0 2px 4px rgba(0, 0, 0, 0.06);
-}
-
-/* ============================================================================
-   MOBILE & TABLET RESPONSIVE
-   ============================================================================ */
-
+/* Responsive */
 @media (max-width: 768px) {
-	.autocomplete-dropdown {
-		min-width: 180px;
-		max-width: 280px;
-	}
-	
-	.autocomplete-item {
-		padding: 10px 14px;
-		font-size: var(--font-ui-medium, 14px);
-		min-height: 36px;
-		display: flex;
-		align-items: center;
-	}
-	
-	.autocomplete-list {
-		max-height: 250px;
-	}
+  .suggestion-container:has(.autocomplete-match) { min-width: 180px; max-width: 280px; }
+  .suggestion-container:has(.autocomplete-match) .suggestion { max-height: 250px; }
+  .suggestion-container:has(.autocomplete-match) .suggestion-item {
+    padding: 10px 14px;
+    font-size: var(--font-ui-medium, 14px);
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+  }
 }
-
 @media (max-width: 480px) {
-	.autocomplete-dropdown {
-		min-width: 160px;
-		max-width: 240px;
-		font-size: 15px;
-	}
-	
-	.autocomplete-list {
-		max-height: 200px;
-	}
+  .suggestion-container:has(.autocomplete-match) { min-width: 160px; max-width: 240px; font-size: 15px; }
+  .suggestion-container:has(.autocomplete-match) .suggestion { max-height: 200px; }
 }
 
-/* ============================================================================
-   ACCESSIBILITY
-   ============================================================================ */
-
+/* Accessibility & print */
 @media (prefers-contrast: high) {
-	.autocomplete-dropdown {
-		border-width: 2px;
-	}
-	
-	.autocomplete-item.is-selected {
-		outline: 2px solid var(--text-on-accent);
-		outline-offset: -2px;
-	}
+  .suggestion-container:has(.autocomplete-match) { border-width: 2px; }
+  .suggestion-container:has(.autocomplete-match) .suggestion-item.is-selected {
+    outline: 2px solid var(--text-on-accent);
+    outline-offset: -2px;
+  }
 }
-
 @media (prefers-reduced-motion: reduce) {
-	.autocomplete-dropdown {
-		animation: none;
-	}
-	
-	.autocomplete-item {
-		transition: none;
-	}
+  .suggestion-container:has(.autocomplete-match) { animation: none; }
+  .suggestion-container:has(.autocomplete-match) .suggestion-item { transition: none; }
 }
-
-/* ============================================================================
-   PRINT STYLES
-   ============================================================================ */
-
 @media print {
-	.autocomplete-dropdown {
-		display: none !important;
-	}
+  .suggestion-container:has(.autocomplete-match) { display: none !important; }
 }
