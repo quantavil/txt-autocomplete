@@ -1,4 +1,4 @@
-const { Plugin, PluginSettingTab, Setting, Notice } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting } = require('obsidian');
 
 // ============================================================================
 // OPTIMIZED TRIE (Alphabetical sorting built-in)
@@ -27,29 +27,6 @@ class Trie {
             node = node.children.get(char);
         }
         node.isWord = true;
-    }
-
-    remove(word) {
-        this._remove(this.root, word.toLowerCase(), 0);
-    }
-
-    _remove(node, word, index) {
-        if (index === word.length) {
-            if (!node.isWord) return false;
-            node.isWord = false;
-            return node.children.size === 0;
-        }
-
-        const char = word[index];
-        const child = node.children.get(char);
-        if (!child) return false;
-
-        const shouldDelete = this._remove(child, word, index + 1);
-        if (shouldDelete) {
-            node.children.delete(char);
-            return !node.isWord && node.children.size === 0;
-        }
-        return false;
     }
 
     search(prefix, limit = 10) {
@@ -191,8 +168,7 @@ const DEFAULT_SETTINGS = {
     minLength: 3,
     addSpace: true,
     delay: 100,
-    enableInCode: false,
-    customWords: []
+    enableInCode: false
 };
 
 class TextAutocompletePlugin extends Plugin {
@@ -202,7 +178,6 @@ class TextAutocompletePlugin extends Plugin {
         this.trie = new Trie();
         this.ui = new AutocompleteUI(this);
         this.timer = null;
-        this.docWords = new Set();
 
         await this.loadDictionary();
 
@@ -226,10 +201,6 @@ class TextAutocompletePlugin extends Plugin {
     }
 
     async loadDictionary() {
-        // Load custom words
-        this.settings.customWords.forEach(word => this.trie.insert(word));
-
-        // Load words.txt
         try {
             const path = `${this.manifest.dir}/words.txt`;
             const content = await this.app.vault.adapter.read(path);
@@ -250,12 +221,6 @@ class TextAutocompletePlugin extends Plugin {
 
                 clearTimeout(this.timer);
                 this.timer = setTimeout(() => this.process(editor), this.settings.delay);
-            })
-        );
-
-        this.registerEvent(
-            this.app.workspace.on('file-open', (file) => {
-                if (file) this.learnFromFile(file);
             })
         );
     }
@@ -307,37 +272,8 @@ class TextAutocompletePlugin extends Plugin {
     }
 
     getSuggestions(word) {
-        const lower = word.toLowerCase();
-
-        // Get all matching words from trie
-        const allMatches = this.trie.search(word, this.settings.maxSuggestions * 2);
-
-        // Separate exact match from other matches
-        const exactMatch = allMatches.find(w => w === lower);
-        const otherMatches = allMatches.filter(w => w !== lower);
-
-        // Get document words (excluding exact match)
-        const doc = Array.from(this.docWords)
-            .filter(w => {
-                const wLower = w.toLowerCase();
-                return wLower.startsWith(lower) && wLower !== lower;
-            })
-            .sort()
-            .slice(0, 3);
-
-        // Combine: exact match FIRST, then doc words, then dictionary words
-        let combined;
-        if (exactMatch) {
-            // Put exact match at position 0
-            combined = [exactMatch, ...new Set([...doc, ...otherMatches])];
-        } else {
-            // No exact match found
-            combined = [...new Set([...doc, ...otherMatches])];
-        }
-
-        // Match case and limit to max suggestions
-        return combined
-            .slice(0, this.settings.maxSuggestions)
+        return this.trie
+            .search(word, this.settings.maxSuggestions)
             .map(w => this.matchCase(w, word));
     }
 
@@ -363,37 +299,9 @@ class TextAutocompletePlugin extends Plugin {
         return false;
     }
 
-    async learnFromFile(file) {
-        try {
-            const content = await this.app.vault.read(file);
-            const words = content.match(/\b[a-zA-Z][a-zA-Z0-9']{2,}\b/g) || [];
-            this.docWords = new Set(words);
-        } catch (e) {
-            console.error('Learn error:', e);
-        }
-    }
-
     getEditor() {
         const view = this.app.workspace.getActiveViewOfType(require('obsidian').MarkdownView);
         return view?.editor;
-    }
-
-    async addWord(word) {
-        word = word.trim();
-        if (!word || this.settings.customWords.includes(word)) return;
-
-        this.settings.customWords.push(word);
-        this.trie.insert(word);
-        await this.saveSettings();
-    }
-
-    async removeWord(word) {
-        const index = this.settings.customWords.indexOf(word);
-        if (index === -1) return;
-
-        this.settings.customWords.splice(index, 1);
-        this.trie.remove(word);
-        await this.saveSettings();
     }
 }
 
@@ -470,55 +378,6 @@ class AutocompleteSettingTab extends PluginSettingTab {
                     this.plugin.settings.enableInCode = v;
                     await this.plugin.saveSettings();
                 }));
-
-        // Custom words
-        containerEl.createEl('h3', { text: 'Custom Dictionary' });
-
-        let input;
-        new Setting(containerEl)
-            .setName('Add word')
-            .addText(t => {
-                input = t.setPlaceholder('Enter word...');
-                t.inputEl.onkeydown = async (e) => {
-                    if (e.key === 'Enter') {
-                        await this.plugin.addWord(t.getValue());
-                        t.setValue('');
-                        this.display();
-                    }
-                };
-            })
-            .addButton(b => b.setButtonText('Add')
-                .onClick(async () => {
-                    await this.plugin.addWord(input.getValue());
-                    input.setValue('');
-                    this.display();
-                }));
-
-        if (this.plugin.settings.customWords.length) {
-            const container = containerEl.createDiv('custom-words');
-
-            this.plugin.settings.customWords.forEach(word => {
-                new Setting(container)
-                    .setName(word)
-                    .addButton(b => b.setButtonText('Remove')
-                        .setWarning()
-                        .onClick(async () => {
-                            await this.plugin.removeWord(word);
-                            this.display();
-                        }));
-            });
-
-            new Setting(containerEl)
-                .setName('Clear all')
-                .addButton(b => b.setButtonText('Clear')
-                    .setWarning()
-                    .onClick(async () => {
-                        this.plugin.settings.customWords.forEach(w => this.plugin.trie.remove(w));
-                        this.plugin.settings.customWords = [];
-                        await this.plugin.saveSettings();
-                        this.display();
-                    }));
-        }
     }
 }
 
