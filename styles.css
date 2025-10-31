@@ -104,6 +104,81 @@
   box-shadow: 0 4px 16px rgba(0,0,0,.1), 0 2px 4px rgba(0,0,0,.06);
 }
 
+/* ============================================================================
+   Ghost Text Autocomplete Styles
+   ============================================================================ */
+
+.cm-ghost-text {
+  color: var(--text-faint);
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+  font-style: normal;
+  position: relative;
+}
+
+/* Subtle pulse animation on appear */
+@keyframes ghost-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.45;
+  }
+}
+
+.cm-ghost-text {
+  animation: ghost-appear 0.15s ease-out;
+}
+
+/* Theme adjustments */
+.theme-dark .cm-ghost-text {
+  opacity: 0.4;
+  color: var(--text-muted);
+}
+
+.theme-light .cm-ghost-text {
+  opacity: 0.5;
+  color: var(--text-faint);
+}
+
+/* High contrast mode - make more visible */
+@media (prefers-contrast: high) {
+  .cm-ghost-text {
+    opacity: 0.65;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+  }
+}
+
+/* Reduced motion - no animation */
+@media (prefers-reduced-motion: reduce) {
+  .cm-ghost-text {
+    animation: none;
+  }
+}
+
+/* Print - hide completely */
+@media print {
+  .cm-ghost-text {
+    display: none !important;
+  }
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .cm-ghost-text {
+    opacity: 0.5;
+  }
+}
+
+/* Ensure ghost text doesn't interfere with editor */
+.cm-line .cm-ghost-text {
+  display: inline;
+  white-space: pre;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .suggestion-container:has(.autocomplete-match) { min-width: 180px; max-width: 280px; }

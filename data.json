@@ -4,6 +4,8 @@
   "minLength": 3,
   "addSpace": true,
   "enableInCode": false,
+  "useGhostText": true,
+  "showPopupWithGhost": false,
   "minWordLength": 3,
   "fuzzyMatch": true,
   "learnFromDocument": true,
