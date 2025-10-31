@@ -154,12 +154,13 @@ class AutocompleteUI {
     }
 
     move(direction) {
-        if (!this.dropdown) return;
+        if (!this.dropdown) return false;
         const max = this.suggestions.length;
         this.selectedIndex = direction === 'down'
             ? (this.selectedIndex + 1) % max
             : (this.selectedIndex - 1 + max) % max;
         this.select(this.selectedIndex);
+        return true;
     }
 
     accept(editor) {
