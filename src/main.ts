@@ -1,464 +1,32 @@
 import {
 	Notice,
 	Plugin,
-	PluginSettingTab,
-	Setting,
 	normalizePath,
-	type App,
 	type Editor,
 	MarkdownView,
 } from "obsidian";
 import { syntaxTree } from "@codemirror/language";
+import { EditorView } from "@codemirror/view";
+import type { EditorState } from "@codemirror/state";
+
+import type { PluginSettings, SavedData, SuggestionItem, WordContext } from "./types";
+import { Trie } from "./trie";
+import { DEFAULT_SETTINGS, AutocompleteSettingTab } from "./settings";
 import {
-	Decoration,
-	type DecorationSet,
-	EditorView,
-	keymap,
-	ViewPlugin,
-	type ViewUpdate,
-	WidgetType,
-} from "@codemirror/view";
-import {
-	Prec,
-	StateEffect,
-	StateField,
-	type EditorState,
-	type Extension,
-} from "@codemirror/state";
-
-/* ============================================================================
-   Types
-   ============================================================================ */
-
-interface PluginSettings {
-	enabled: boolean;
-	maxSuggestions: number;
-	minLength: number;
-	addSpace: boolean;
-	enableInCode: boolean;
-	fuzzyEdits: number;
-	fuzzyMinLength: number;
-}
-
-interface SuggestionItem {
-	text: string;
-	isFuzzy: boolean;
-	wordStart: number;
-}
-
-interface GhostTextSession {
-	suggestions: SuggestionItem[];
-	currentIndex: number;
-	cursorPos: number;
-}
-
-interface WordContext {
-	prefix: string;
-	cursorPos: number;
-	wordStart: number;
-}
-
-interface FuzzyResult {
-	word: string;
-	dist: number;
-}
-
-/* ============================================================================
-   Trie
-   ============================================================================ */
-
-class TrieNode {
-	public readonly children = new Map<string, TrieNode>();
-	public word: string | null = null;
-}
-
-class Trie {
-	private readonly root = new TrieNode();
-
-	public insert(word: string): void {
-		const original = word.trim();
-		if (!original) return;
-
-		let node = this.root;
-		for (const ch of original.toLowerCase()) {
-			let next = node.children.get(ch);
-			if (!next) {
-				next = new TrieNode();
-				node.children.set(ch, next);
-			}
-			node = next;
-		}
-
-		if (node.word === null) {
-			node.word = original;
-		}
-	}
-
-	public search(prefix: string, limit = 5): string[] {
-		if (!prefix || limit <= 0) return [];
-
-		let node = this.root;
-		for (const ch of prefix.toLowerCase()) {
-			const next = node.children.get(ch);
-			if (!next) return [];
-			node = next;
-		}
-
-		const results: string[] = [];
-		this.collect(node, results, limit);
-		return results;
-	}
-
-	public searchFuzzy(term: string, maxEdits: number, limit = 5): FuzzyResult[] {
-		if (!term || maxEdits <= 0 || limit <= 0) return [];
-
-		const query = term.toLowerCase();
-		const firstRow = Array.from({ length: query.length + 1 }, (_, index) => index);
-		const results: FuzzyResult[] = [];
-
-		this.fuzzyDfs(
-			this.root,
-			"",
-			"",
-			query,
-			firstRow,
-			null,
-			maxEdits,
-			results,
-			limit,
-		);
-
-		results.sort((a, b) => a.dist - b.dist || a.word.localeCompare(b.word));
-		return results.slice(0, limit);
-	}
-
-	private collect(node: TrieNode, results: string[], limit: number): void {
-		if (results.length >= limit) return;
-
-		if (node.word !== null) {
-			results.push(node.word);
-		}
-
-		for (const child of node.children.values()) {
-			if (results.length >= limit) break;
-			this.collect(child, results, limit);
-		}
-	}
-
-	private fuzzyDfs(
-		node: TrieNode,
-		prefix: string,
-		prevChar: string,
-		query: string,
-		prevRow: number[],
-		prevPrevRow: number[] | null,
-		maxEdits: number,
-		results: FuzzyResult[],
-		limit: number,
-	): void {
-		for (const [ch, child] of node.children) {
-			const currRow = [prevRow[0] + 1];
-			let rowMin = currRow[0];
-
-			for (let j = 1; j < prevRow.length; j++) {
-				const cost = query[j - 1] === ch ? 0 : 1;
-
-				let value = Math.min(
-					currRow[j - 1] + 1,
-					prevRow[j] + 1,
-					prevRow[j - 1] + cost,
-				);
-
-				if (
-					prevPrevRow &&
-					j > 1 &&
-					ch === query[j - 2] &&
-					prevChar === query[j - 1]
-				) {
-					value = Math.min(value, prevPrevRow[j - 2] + 1);
-				}
-
-				currRow[j] = value;
-				if (value < rowMin) rowMin = value;
-			}
-
-			const newPrefix = prefix + ch;
-			const dist = currRow[currRow.length - 1];
-
-			if (child.word !== null && dist <= maxEdits) {
-				results.push({ word: child.word, dist });
-
-				if (results.length > limit * 5) {
-					results.sort((a, b) => a.dist - b.dist || a.word.localeCompare(b.word));
-					results.length = limit * 3;
-				}
-			}
-
-			if (rowMin <= maxEdits) {
-				this.fuzzyDfs(
-					child,
-					newPrefix,
-					ch,
-					query,
-					currRow,
-					prevRow,
-					maxEdits,
-					results,
-					limit,
-				);
-			}
-		}
-	}
-}
-
-/* ============================================================================
-   Settings
-   ============================================================================ */
-
-const DEFAULT_SETTINGS: PluginSettings = {
-	enabled: true,
-	maxSuggestions: 5,
-	minLength: 3,
-	addSpace: true,
-	enableInCode: false,
-	fuzzyEdits: 2,
-	fuzzyMinLength: 4,
-};
-
-/* ============================================================================
-   Effects & State
-   ============================================================================ */
-
-const SetSuggestionsEffect = StateEffect.define<GhostTextSession>();
-const CycleSuggestionEffect = StateEffect.define<1 | -1>();
-const ClearSuggestionsEffect = StateEffect.define<null>();
-
-const GhostTextState = StateField.define<GhostTextSession | null>({
-	create: () => null,
-
-	update(value, tr) {
-		for (const effect of tr.effects) {
-			if (effect.is(SetSuggestionsEffect)) return effect.value;
-			if (effect.is(ClearSuggestionsEffect)) return null;
-
-			if (
-				effect.is(CycleSuggestionEffect) &&
-				value?.suggestions.length &&
-				value.suggestions.length > 1
-			) {
-				const length = value.suggestions.length;
-				const nextIndex =
-					(value.currentIndex + effect.value + length) % length;
-
-				return { ...value, currentIndex: nextIndex };
-			}
-		}
-
-		if (!value) return null;
-
-		if (tr.docChanged && value) {
-			let touched = false;
-
-			tr.changes.iterChanges((fromA, toA) => {
-				if (fromA <= value!.cursorPos && value!.cursorPos <= toA) {
-					touched = true;
-				}
-			});
-
-			if (!touched) {
-				const activeSuggestion = value.suggestions[value.currentIndex];
-				if (activeSuggestion?.isFuzzy) {
-					const from = activeSuggestion.wordStart;
-					const to = value.cursorPos;
-
-					tr.changes.iterChanges((fromA, toA) => {
-						const overlaps = !(toA < from || fromA > to);
-						if (overlaps) touched = true;
-					});
-				}
-			}
-
-			if (touched) return null;
-
-			const mappedCursor = tr.changes.mapPos(value.cursorPos, 1);
-			const mappedSuggestions = value.suggestions.map((suggestion) =>
-				suggestion.isFuzzy
-					? {
-							...suggestion,
-							wordStart: tr.changes.mapPos(suggestion.wordStart, -1),
-						}
-					: suggestion,
-			);
-
-			value = {
-				...value,
-				cursorPos: mappedCursor,
-				suggestions: mappedSuggestions,
-			};
-		}
-
-		if (
-			tr.selection &&
-			(
-				tr.state.selection.ranges.length > 1 ||
-				!tr.state.selection.main.empty ||
-				tr.state.selection.main.head !== value.cursorPos
-			)
-		) {
-			return null;
-		}
-
-		return value;
-	},
-});
-
-/* ============================================================================
-   Widget & Decorations
-   ============================================================================ */
-
-class GhostTextWidget extends WidgetType {
-	public constructor(
-		private readonly text: string,
-		private readonly isFuzzy: boolean,
-	) {
-		super();
-	}
-
-	public override eq(other: GhostTextWidget): boolean {
-		return other.text === this.text && other.isFuzzy === this.isFuzzy;
-	}
-
-	public override toDOM(): HTMLElement {
-		const span = document.createElement("span");
-		span.className = this.isFuzzy
-			? "txt-autocomplete-ghost-text txt-autocomplete-ghost-fuzzy"
-			: "txt-autocomplete-ghost-text";
-
-		if (this.isFuzzy) {
-			const arrow = document.createElement("span");
-			arrow.className = "txt-autocomplete-ghost-arrow";
-			arrow.textContent = "→";
-			span.append(arrow, document.createTextNode(this.text));
-		} else {
-			span.textContent = this.text;
-		}
-
-		return span;
-	}
-
-	public override ignoreEvent(): boolean {
-		return true;
-	}
-}
-
-const GhostTextPlugin = Prec.lowest(
-	ViewPlugin.fromClass(
-		class {
-			public decorations: DecorationSet = Decoration.none;
-
-			public update(update: ViewUpdate): void {
-				const session = update.state.field(GhostTextState, false);
-				if (!session?.suggestions.length) {
-					this.decorations = Decoration.none;
-					return;
-				}
-
-				const suggestion = session.suggestions[session.currentIndex];
-				if (!suggestion) {
-					this.decorations = Decoration.none;
-					return;
-				}
-
-				const widget = Decoration.widget({
-					widget: new GhostTextWidget(suggestion.text, suggestion.isFuzzy),
-					side: 1,
-				});
-
-				this.decorations = Decoration.set([
-					widget.range(session.cursorPos),
-				]);
-			}
-		},
-		{
-			decorations: (value) => value.decorations,
-		},
-	),
-);
-
-/* ============================================================================
-   Keymap
-   ============================================================================ */
-
-const createEditorKeymap = (plugin: TextAutocompletePlugin): Extension =>
-	Prec.high(
-		keymap.of([
-			{
-				key: "Tab",
-				run: (view) => plugin.acceptSuggestion(view),
-			},
-			{
-				key: "ArrowRight",
-				run: (view) => plugin.cycleSuggestion(view, 1),
-			},
-			{
-				key: "ArrowLeft",
-				run: (view) => plugin.cycleSuggestion(view, -1),
-			},
-			{
-				key: "Escape",
-				run: (view) => plugin.dismissSuggestions(view),
-			},
-		]),
-	);
-
-/* ============================================================================
-   Change Listener
-   ============================================================================ */
-
-const createChangeListener = (plugin: TextAutocompletePlugin): Extension =>
-	ViewPlugin.fromClass(
-		class {
-			private timeout: number | null = null;
-
-			public constructor(private readonly view: EditorView) {}
-
-			public update(update: ViewUpdate): void {
-				if (!plugin.settings.enabled) return;
-				if (!update.view.hasFocus) return;
-				if (!update.docChanged) return;
-
-				const isRelevantEdit = update.transactions.some(
-					(tr) => tr.isUserEvent("input") || tr.isUserEvent("delete"),
-				);
-
-				if (!isRelevantEdit) return;
-
-				if (this.timeout !== null) {
-					window.clearTimeout(this.timeout);
-				}
-
-				this.timeout = window.setTimeout(() => {
-					this.timeout = null;
-					plugin.refreshSuggestionsAtCursor(this.view);
-				}, 60);
-			}
-
-			public destroy(): void {
-				if (this.timeout !== null) {
-					window.clearTimeout(this.timeout);
-				}
-			}
-		},
-	);
-
-/* ============================================================================
-   Main Plugin
-   ============================================================================ */
+	GhostTextState,
+	GhostTextPlugin,
+	createEditorKeymap,
+	createChangeListener,
+	SetSuggestionsEffect,
+	ClearSuggestionsEffect,
+	CycleSuggestionEffect,
+} from "./editor";
 
 export default class TextAutocompletePlugin extends Plugin {
 	public settings: PluginSettings = DEFAULT_SETTINGS;
+	public data: SavedData = {};
 
-	private trie = new Trie();
+	public trie = new Trie();
 	private dictionaryLoaded = false;
 
 	public override async onload(): Promise<void> {
@@ -492,14 +60,22 @@ export default class TextAutocompletePlugin extends Plugin {
 	}
 
 	public async loadSettings(): Promise<void> {
+		const savedData = await this.loadData() as SavedData | null;
+		this.data = savedData || {};
+		
 		this.settings = {
 			...DEFAULT_SETTINGS,
-			...(await this.loadData()),
+			...(this.data.settings || {}),
 		};
 	}
 
 	public async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
+		this.data.settings = this.settings;
+		await this.saveData(this.data);
+	}
+
+	public async saveWords(): Promise<void> {
+		await this.saveData(this.data);
 	}
 
 	public getDictionaryPath(): string {
@@ -529,6 +105,16 @@ export default class TextAutocompletePlugin extends Plugin {
 
 			for (const word of words) {
 				this.trie.insert(word);
+			}
+
+			// Add user words to the trie as well
+			if (this.data.userWords) {
+				for (const word of this.data.userWords) {
+					// We only insert if it's not ignored
+					if (!this.data.ignoredWords?.includes(word.toLowerCase())) {
+						this.trie.insert(word);
+					}
+				}
 			}
 
 			this.dictionaryLoaded = true;
@@ -572,6 +158,11 @@ export default class TextAutocompletePlugin extends Plugin {
 		for (const word of words) {
 			const wordLower = word.toLowerCase();
 			if (wordLower === prefixLower) continue;
+
+			// Do not suggest ignored words
+			if (this.data.ignoredWords?.includes(wordLower)) {
+				continue;
+			}
 
 			const matched = this.matchCase(word, context.prefix);
 
@@ -695,6 +286,15 @@ export default class TextAutocompletePlugin extends Plugin {
 				await this.reloadDictionary(true);
 			},
 		});
+
+		this.addCommand({
+			id: "scan-vault-words",
+			name: "Scan vault for new words",
+			callback: async () => {
+				const { scanVault } = await import("./scanner");
+				await scanVault(this);
+			},
+		});
 	}
 
 	private getSuggestions(prefix: string): string[] {
@@ -747,9 +347,9 @@ export default class TextAutocompletePlugin extends Plugin {
 		const before = line.text.slice(0, offset);
 		const after = line.text.slice(offset);
 
-		if (/^[\p{L}\p{N}'’-]/u.test(after)) return null;
+		if (/^[-\p{L}\p{N}'’]/u.test(after)) return null;
 
-		const match = before.match(/[\p{L}][\p{L}\p{N}'’-]*$/u);
+		const match = before.match(/[\p{L}][-\p{L}\p{N}'’]*$/u);
 		if (!match) return null;
 
 		const prefix = match[0];
@@ -854,7 +454,7 @@ export default class TextAutocompletePlugin extends Plugin {
 		if (!this.settings.addSpace) return false;
 
 		const nextChar = view.state.doc.sliceString(insertTo, insertTo + 1);
-		return nextChar === "" || !/^[\s\]\)\}\.,;:!?'"`|\/]/u.test(nextChar);
+		return nextChar === "" || !/^[-\s\]\)\}\.,;:!?'"`|\/]/u.test(nextChar);
 	}
 
 	private matchCase(word: string, original: string): string {
@@ -881,7 +481,7 @@ export default class TextAutocompletePlugin extends Plugin {
 		return word;
 	}
 
-	private getGhostSession(view: EditorView): GhostTextSession | null {
+	private getGhostSession(view: EditorView): import("./types").GhostTextSession | null {
 		return view.state.field(GhostTextState, false) ?? null;
 	}
 
@@ -899,114 +499,5 @@ export default class TextAutocompletePlugin extends Plugin {
 
 		const editorWithCm = markdownView.editor as Editor & { cm?: EditorView };
 		return editorWithCm.cm ?? null;
-	}
-}
-
-/* ============================================================================
-   Settings Tab
-   ============================================================================ */
-
-class AutocompleteSettingTab extends PluginSettingTab {
-	public constructor(app: App, private readonly plugin: TextAutocompletePlugin) {
-		super(app, plugin);
-	}
-
-	private async updateSetting<K extends keyof PluginSettings>(key: K, value: PluginSettings[K]): Promise<void> {
-		this.plugin.settings[key] = value;
-		await this.plugin.saveSettings();
-		this.plugin.clearAllEditors();
-	}
-
-	public override display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-
-		containerEl.createEl("h2", { text: "Txt Autocomplete" });
-		containerEl.createEl("p", {
-			text: "Tab accepts, Left/Right cycles, Esc dismisses. Commands are also available in Hotkeys.",
-			cls: "setting-item-description",
-		});
-
-		new Setting(containerEl)
-			.setName("Enable autocomplete")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.enabled)
-					.onChange((value) => this.updateSetting("enabled", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Max suggestions")
-			.setDesc("How many suggestions to keep in the rotation.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(3, 10, 1)
-					.setValue(this.plugin.settings.maxSuggestions)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("maxSuggestions", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Minimum word length")
-			.setDesc("Characters required before suggestions appear.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(2, 6, 1)
-					.setValue(this.plugin.settings.minLength)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("minLength", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Fuzzy edit distance")
-			.setDesc("Maximum edits allowed for fuzzy matches. Set to 0 to disable fuzzy matching.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 3, 1)
-					.setValue(this.plugin.settings.fuzzyEdits)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("fuzzyEdits", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Minimum length for fuzzy matching")
-			.setDesc("Avoid expensive fuzzy matching on very short prefixes.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(3, 8, 1)
-					.setValue(this.plugin.settings.fuzzyMinLength)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("fuzzyMinLength", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Add trailing space")
-			.setDesc("Append a space after accepting a completion when punctuation does not follow.")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.addSpace)
-					.onChange((value) => this.updateSetting("addSpace", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Enable inside code")
-			.setDesc("Show suggestions inside fenced code blocks and inline code.")
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.enableInCode)
-					.onChange((value) => this.updateSetting("enableInCode", value)),
-			);
-
-		new Setting(containerEl)
-			.setName("Reload dictionary")
-			.setDesc(this.plugin.getDictionaryPath())
-			.addButton((button) =>
-				button
-					.setButtonText("Reload")
-					.setCta()
-					.onClick(async () => {
-						await this.plugin.reloadDictionary(true);
-					}),
-			);
 	}
 }
