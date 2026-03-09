@@ -1,57 +1,53 @@
 /* ============================================================================
-   Text Autocomplete — Ghost Text Styles (refined)
+   Txt Autocomplete — Ghost Text Styles
    ============================================================================ */
 
-/* Design tokens (tweak to taste) */
 :root {
-  --ghost-opacity: 0.46;
-  --ghost-fuzzy-opacity: 0.58;
-  --ghost-arrow-opacity: 0.8;
-  --ghost-anim: 140ms;
+  --txt-autocomplete-ghost-opacity: 0.46;
+  --txt-autocomplete-ghost-fuzzy-opacity: 0.58;
+  --txt-autocomplete-ghost-arrow-opacity: 0.8;
+  --txt-autocomplete-ghost-anim: 140ms;
 
-  --ghost-color: var(--text-faint);
-  --ghost-fuzzy-color: var(--text-muted);
-  --ghost-arrow-color: var(--text-accent);
+  --txt-autocomplete-ghost-color: var(--text-faint);
+  --txt-autocomplete-ghost-fuzzy-color: var(--text-muted);
+  --txt-autocomplete-ghost-arrow-color: var(--text-accent);
 }
 
-/* Theme tuning */
 .theme-dark {
-  --ghost-opacity: 0.42;
-  --ghost-fuzzy-opacity: 0.52;
-  --ghost-arrow-opacity: 0.85;
+  --txt-autocomplete-ghost-opacity: 0.42;
+  --txt-autocomplete-ghost-fuzzy-opacity: 0.52;
+  --txt-autocomplete-ghost-arrow-opacity: 0.85;
 }
 
 .theme-light {
-  --ghost-opacity: 0.5;
-  --ghost-fuzzy-opacity: 0.62;
-  --ghost-arrow-opacity: 0.78;
+  --txt-autocomplete-ghost-opacity: 0.5;
+  --txt-autocomplete-ghost-fuzzy-opacity: 0.62;
+  --txt-autocomplete-ghost-arrow-opacity: 0.78;
 }
 
-/* Core */
-.cm-ghost-text {
-  color: var(--ghost-color);
-  opacity: var(--ghost-opacity);
+.txt-autocomplete-ghost-text {
+  color: var(--txt-autocomplete-ghost-color);
+  opacity: var(--txt-autocomplete-ghost-opacity);
   pointer-events: none;
   user-select: none;
   white-space: pre;
   display: inline;
-  position: relative;
   line-height: inherit;
   font: inherit;
-  animation: ghost-in var(--ghost-anim) ease-out;
+  animation: txt-autocomplete-ghost-in var(--txt-autocomplete-ghost-anim) ease-out;
 }
 
-.cm-ghost-fuzzy {
-  color: var(--ghost-fuzzy-color);
-  opacity: var(--ghost-fuzzy-opacity);
+.txt-autocomplete-ghost-fuzzy {
+  color: var(--txt-autocomplete-ghost-fuzzy-color);
+  opacity: var(--txt-autocomplete-ghost-fuzzy-opacity);
   text-decoration: underline dotted currentColor;
   text-underline-offset: 2px;
-  animation: ghost-in-fuzzy var(--ghost-anim) ease-out;
+  animation: txt-autocomplete-ghost-in-fuzzy var(--txt-autocomplete-ghost-anim) ease-out;
 }
 
-.cm-ghost-arrow {
-  color: var(--ghost-arrow-color);
-  opacity: var(--ghost-arrow-opacity);
+.txt-autocomplete-ghost-arrow {
+  color: var(--txt-autocomplete-ghost-arrow-color);
+  opacity: var(--txt-autocomplete-ghost-arrow-opacity);
   display: inline-block;
   margin-right: 0.3em;
   font-weight: 600;
@@ -59,77 +55,89 @@
   transform: translateY(-0.02em);
 }
 
-/* Appear animations (respect per-variant opacity) */
-@keyframes ghost-in {
-  from { opacity: 0; transform: translateX(2px); }
-  to   { opacity: var(--ghost-opacity); transform: translateX(0); }
+@keyframes txt-autocomplete-ghost-in {
+  from {
+    opacity: 0;
+    transform: translateX(2px);
+  }
+  to {
+    opacity: var(--txt-autocomplete-ghost-opacity);
+    transform: translateX(0);
+  }
 }
 
-@keyframes ghost-in-fuzzy {
-  from { opacity: 0; transform: translateX(2px); }
-  to   { opacity: var(--ghost-fuzzy-opacity); transform: translateX(0); }
+@keyframes txt-autocomplete-ghost-in-fuzzy {
+  from {
+    opacity: 0;
+    transform: translateX(2px);
+  }
+  to {
+    opacity: var(--txt-autocomplete-ghost-fuzzy-opacity);
+    transform: translateX(0);
+  }
 }
 
-/* Focus behavior: quieter when editor blurs */
-.cm-editor:not(.cm-focused) .cm-ghost-text,
-.cm-editor:not(.cm-focused) .cm-ghost-fuzzy {
+.cm-editor:not(.cm-focused) .txt-autocomplete-ghost-text,
+.cm-editor:not(.cm-focused) .txt-autocomplete-ghost-fuzzy {
   opacity: 0.3;
 }
 
-.cm-editor:not(.cm-focused) .cm-ghost-arrow {
+.cm-editor:not(.cm-focused) .txt-autocomplete-ghost-arrow {
   opacity: 0.45;
 }
 
-/* Accessibility: high-contrast */
 @media (prefers-contrast: more) {
-  .cm-ghost-text { opacity: 0.8; }
-  .cm-ghost-fuzzy {
+  .txt-autocomplete-ghost-text {
+    opacity: 0.8;
+  }
+
+  .txt-autocomplete-ghost-fuzzy {
     opacity: 0.9;
     text-decoration-style: dashed;
     text-decoration-thickness: 1px;
   }
-  .cm-ghost-arrow { opacity: 1; font-weight: 700; }
+
+  .txt-autocomplete-ghost-arrow {
+    opacity: 1;
+    font-weight: 700;
+  }
 }
 
-/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-  .cm-ghost-text,
-  .cm-ghost-fuzzy {
+  .txt-autocomplete-ghost-text,
+  .txt-autocomplete-ghost-fuzzy {
     animation: none !important;
     transition: none !important;
   }
 }
 
-/* Mobile tweaks */
 @media (max-width: 768px) {
-  .cm-ghost-arrow { margin-right: 0.2em; font-size: 0.95em; }
+  .txt-autocomplete-ghost-arrow {
+    margin-right: 0.2em;
+    font-size: 0.95em;
+  }
 }
 
-/* Print: hide ghost UI */
 @media print {
-  .cm-ghost-text,
-  .cm-ghost-fuzzy,
-  .cm-ghost-arrow { display: none !important; }
+  .txt-autocomplete-ghost-text,
+  .txt-autocomplete-ghost-fuzzy,
+  .txt-autocomplete-ghost-arrow {
+    display: none !important;
+  }
 }
 
-/* Selection safety */
-.cm-ghost-text::selection,
-.cm-ghost-fuzzy::selection { background: transparent; }
-.cm-ghost-text::-moz-selection,
-.cm-ghost-fuzzy::-moz-selection { background: transparent; }
+.txt-autocomplete-ghost-text::selection,
+.txt-autocomplete-ghost-fuzzy::selection {
+  background: transparent;
+}
 
-/* RTL support */
-[dir="rtl"] .cm-ghost-arrow {
+.txt-autocomplete-ghost-text::-moz-selection,
+.txt-autocomplete-ghost-fuzzy::-moz-selection {
+  background: transparent;
+}
+
+[dir="rtl"] .txt-autocomplete-ghost-arrow {
   margin-right: 0;
   margin-left: 0.3em;
   transform: scaleX(-1) translateY(-0.02em);
-}
-
-/* Performance hints */
-.cm-ghost-text,
-.cm-ghost-fuzzy,
-.cm-ghost-arrow {
-  will-change: opacity, transform;
-  backface-visibility: hidden;
-  transform: translateZ(0);
 }
