@@ -1,0 +1,21 @@
+{
+  "name": "txt-autocomplete",
+  "version": "2.3.0",
+  "private": true,
+  "description": "Ghost-text word autocomplete with fuzzy matching for Obsidian.",
+  "main": "dist/main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production"
+  },
+  "devDependencies": {
+    "@codemirror/language": "^6.12.2",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.39.16",
+    "@types/node": "^25.3.5",
+    "builtin-modules": "^5.0.0",
+    "esbuild": "^0.27.3",
+    "obsidian": "^1.12.3",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,10 +1,10 @@
 {
   "id": "txt-autocomplete",
   "name": "Txt Autocomplete",
-  "version": "2.1",
-  "minAppVersion": "0.15.0",
-  "description": "Intelligent text autocomplete with context awareness and learning capabilities",
+  "version": "2.3.0",
+  "minAppVersion": "1.5.12",
+  "description": "Ghost-text word autocomplete with prefix and fuzzy matching for Obsidian.",
   "author": "Quantavil",
   "authorUrl": "https://github.com/quantavil/",
-  "isDesktopOnly": false
+  "isDesktopOnly": true
 }
