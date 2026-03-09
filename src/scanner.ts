@@ -1,7 +1,7 @@
 import { Notice, type TFile } from "obsidian";
 import type TextAutocompletePlugin from "./main";
 
-const WORD_RE = /(?<!\p{L})\p{L}(?:[-\p{L}'’]*\p{L})?(?!\p{L})/gu;
+const WORD_RE = /(?<!\p{L})\p{L}(?:[\p{L}'’]*\p{L})?(?!\p{L})/gu;
 
 export async function scanVault(plugin: TextAutocompletePlugin): Promise<void> {
 	if (!plugin.settings.enableVaultLearning) {

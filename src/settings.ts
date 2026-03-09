@@ -1,4 +1,4 @@
-import { PluginSettingTab, Setting, type App, Notice } from "obsidian";
+import { PluginSettingTab, Setting, type App, Notice, setIcon } from "obsidian";
 import type { PluginSettings } from "./types";
 import type TextAutocompletePlugin from "./main";
 import { scanVault } from "./scanner";
@@ -27,8 +27,44 @@ export class AutocompleteSettingTab extends PluginSettingTab {
 		this.plugin.clearAllEditors();
 	}
 
+	private addSliderSetting(
+		containerEl: HTMLElement,
+		name: string,
+		desc: string,
+		key: keyof PluginSettings,
+		min: number,
+		max: number,
+		step: number,
+	): void {
+		const setting = new Setting(containerEl)
+			.setName(name)
+			.setDesc(desc);
+
+		const valueEl = setting.settingEl.createEl("span", {
+			text: String(this.plugin.settings[key]),
+			cls: "txt-autocomplete-slider-value-label",
+		});
+
+		setting.addSlider((slider) => {
+			slider
+				.setLimits(min, max, step)
+				.setValue(this.plugin.settings[key] as number)
+				.setDynamicTooltip()
+				.onChange((value) => {
+					void this.updateSetting(key, value);
+					valueEl.setText(String(value));
+				});
+		});
+	}
+
 	public override display(): void {
 		const { containerEl } = this;
+		
+		// Save scroll positions
+		const mainScroll = containerEl.scrollTop;
+		const userListScroll = containerEl.querySelector(".txt-user-words-list")?.scrollTop || 0;
+		const ignoreListScroll = containerEl.querySelector(".txt-ignored-words-list")?.scrollTop || 0;
+
 		containerEl.empty();
 
 		containerEl.createEl("h2", { text: "Txt Autocomplete" });
@@ -47,49 +83,37 @@ export class AutocompleteSettingTab extends PluginSettingTab {
 					.onChange((value) => this.updateSetting("enabled", value)),
 			);
 
-		new Setting(containerEl)
-			.setName("Max suggestions")
-			.setDesc("How many suggestions to keep in the rotation.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(3, 10, 1)
-					.setValue(this.plugin.settings.maxSuggestions)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("maxSuggestions", value)),
-			);
+		this.addSliderSetting(
+			containerEl,
+			"Max suggestions",
+			"How many suggestions to keep in the rotation.",
+			"maxSuggestions",
+			3, 10, 1
+		);
 
-		new Setting(containerEl)
-			.setName("Minimum word length")
-			.setDesc("Characters required before suggestions appear.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(2, 6, 1)
-					.setValue(this.plugin.settings.minLength)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("minLength", value)),
-			);
+		this.addSliderSetting(
+			containerEl,
+			"Minimum word length",
+			"Characters required before suggestions appear.",
+			"minLength",
+			2, 6, 1
+		);
 
-		new Setting(containerEl)
-			.setName("Fuzzy edit distance")
-			.setDesc("Maximum edits allowed for fuzzy matches. Set to 0 to disable fuzzy matching.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(0, 3, 1)
-					.setValue(this.plugin.settings.fuzzyEdits)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("fuzzyEdits", value)),
-			);
+		this.addSliderSetting(
+			containerEl,
+			"Fuzzy edit distance",
+			"Maximum edits allowed for fuzzy matches. Set to 0 to disable fuzzy matching.",
+			"fuzzyEdits",
+			0, 3, 1
+		);
 
-		new Setting(containerEl)
-			.setName("Minimum length for fuzzy matching")
-			.setDesc("Avoid expensive fuzzy matching on very short prefixes.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(3, 8, 1)
-					.setValue(this.plugin.settings.fuzzyMinLength)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("fuzzyMinLength", value)),
-			);
+		this.addSliderSetting(
+			containerEl,
+			"Minimum length for fuzzy matching",
+			"Avoid expensive fuzzy matching on very short prefixes.",
+			"fuzzyMinLength",
+			3, 8, 1
+		);
 
 		new Setting(containerEl)
 			.setName("Add trailing space")
@@ -120,157 +144,150 @@ export class AutocompleteSettingTab extends PluginSettingTab {
 					.onChange((value) => this.updateSetting("enableVaultLearning", value)),
 			);
 
-		new Setting(containerEl)
-			.setName("Minimum learned length")
-			.setDesc("Ignore words shorter than this when scanning.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(3, 8, 1)
-					.setValue(this.plugin.settings.learnedMinLength)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("learnedMinLength", value)),
-			);
+		this.addSliderSetting(
+			containerEl,
+			"Minimum learned length",
+			"Ignore words shorter than this when scanning.",
+			"learnedMinLength",
+			3, 8, 1
+		);
 
-		new Setting(containerEl)
-			.setName("Minimum occurrences")
-			.setDesc("Require a word to appear this many times across your vault before adding it.")
-			.addSlider((slider) =>
-				slider
-					.setLimits(1, 10, 1)
-					.setValue(this.plugin.settings.learnedMinOccurrences)
-					.setDynamicTooltip()
-					.onChange((value) => this.updateSetting("learnedMinOccurrences", value)),
-			);
+		this.addSliderSetting(
+			containerEl,
+			"Minimum occurrences",
+			"Require a word to appear this many times across your vault before adding it.",
+			"learnedMinOccurrences",
+			1, 10, 1
+		);
 
-        containerEl.createEl("h3", { text: "User Dictionary" });
-		
-		let newWordInput = "";
-		new Setting(containerEl)
-			.setName("Add word manually")
-			.setDesc("Add a specific word to your user dictionary.")
-			.addText((text) =>
-				text
-					.setPlaceholder("New word")
-					.onChange((value) => {
-						newWordInput = value;
-					})
-			)
-			.addButton((button) =>
-				button
-					.setButtonText("Add")
-					.setCta()
-					.onClick(async () => {
-						const word = newWordInput.trim().toLowerCase();
-						if (!word) return;
+        let newWordInput = "";
+        new Setting(containerEl)
+            .setName("Add word")
+            .setDesc("Add a new word to your User Dictionary.")
+            .addText((text) =>
+                text
+                    .setPlaceholder("New word")
+                    .onChange((value) => {
+                        newWordInput = value;
+                    })
+            )
+            .addButton((button) =>
+                button
+                    .setIcon("plus")
+                    .setTooltip("Add to dictionary")
+                    .onClick(async () => {
+                        const word = newWordInput.trim().toLowerCase();
+                        if (!word) return;
 
-						this.plugin.data.userWords = this.plugin.data.userWords || [];
-						if (!this.plugin.data.userWords.includes(word)) {
-							this.plugin.data.userWords.push(word);
-							this.plugin.data.userWords.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-							await this.plugin.saveWords();
+                        this.plugin.data.userWords = this.plugin.data.userWords || [];
+                        if (!this.plugin.data.userWords.includes(word)) {
+                            this.plugin.data.userWords.push(word);
+                            this.plugin.data.userWords.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+                            
+                            // Remove from ignore list if it was there
+                            if (this.plugin.data.ignoredWords?.includes(word)) {
+                                this.plugin.data.ignoredWords = this.plugin.data.ignoredWords.filter(w => w !== word);
+                            }
+
+                            await this.plugin.saveWords();
                             await this.plugin.reloadDictionary(false);
-							new Notice(`Added '${word}' to user dictionary.`);
-							this.display(); // Refresh UI
-						} else {
-							new Notice(`'${word}' is already in your user dictionary.`);
-						}
-					})
-			);
+                            new Notice(`Added '${word}' to user dictionary.`);
+                            this.display();
+                        } else {
+                            new Notice(`'${word}' is already in your user dictionary.`);
+                        }
+                    })
+            );
 
-		const userWords = this.plugin.data.userWords || [];
-		if (userWords.length > 0) {
-			const details = containerEl.createEl("details");
-			details.createEl("summary", { text: `View all user words (${userWords.length})` });
-			
-			const list = details.createEl("div", { cls: "txt-autocomplete-word-list" });
-			for (const word of userWords) {
-				const item = list.createEl("div", { cls: "txt-autocomplete-word-item" });
-				item.style.display = "flex";
-				item.style.justifyContent = "space-between";
-				item.style.alignItems = "center";
-				item.style.marginBottom = "4px";
+        const dualPane = containerEl.createEl("div", { cls: "txt-autocomplete-dual-pane" });
 
-				item.createEl("span", { text: word });
+        // --- User Dictionary Pane ---
+        const userPane = dualPane.createEl("div", { cls: "txt-autocomplete-word-pane" });
+        userPane.createEl("h3", { text: "User Dictionary" });
 
-				const btns = item.createEl("div");
-				const btnRemove = btns.createEl("button", { text: "Delete" });
-				btnRemove.onclick = async () => {
-					this.plugin.data.userWords = this.plugin.data.userWords?.filter(w => w !== word);
-					
-					// User proposed: Delete = remove from user words + add to ignore list
-					this.plugin.data.ignoredWords = this.plugin.data.ignoredWords || [];
-					if (!this.plugin.data.ignoredWords.includes(word)) {
-						this.plugin.data.ignoredWords.push(word);
-						this.plugin.data.ignoredWords.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
-					}
+        const userWords = this.plugin.data.userWords || [];
+        const userList = userPane.createEl("div", { cls: "txt-autocomplete-word-list txt-user-words-list" });
+        if (userWords.length === 0) {
+            userList.createEl("div", { text: "No words added.", cls: "txt-autocomplete-word-item" });
+        } else {
+            for (const word of userWords) {
+                const item = userList.createEl("div", { cls: "txt-autocomplete-word-item" });
+                item.createEl("span", { text: word });
 
-					await this.plugin.saveWords();
+                const btnRemove = item.createEl("div", { cls: "clickable-icon is-warning" });
+                setIcon(btnRemove, "trash");
+                btnRemove.setAttribute("aria-label", "Delete and Ignore");
+                
+                btnRemove.onclick = async () => {
+                    this.plugin.data.userWords = this.plugin.data.userWords?.filter(w => w !== word);
+                    this.plugin.data.ignoredWords = this.plugin.data.ignoredWords || [];
+                    if (!this.plugin.data.ignoredWords.includes(word)) {
+                        this.plugin.data.ignoredWords.push(word);
+                        this.plugin.data.ignoredWords.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+                    }
+                    await this.plugin.saveWords();
                     await this.plugin.reloadDictionary(false);
-					new Notice(`Deleted and ignored '${word}'.`);
-					this.display();
-				};
-			}
+                    new Notice(`Deleted and ignored '${word}'.`);
+                    this.display();
+                };
+            }
+        }
 
-            new Setting(containerEl)
-                .setName("Clear all user words")
-                .setDesc("Remove all manually added and scanning-learned words from the User Dictionary. This does not add them to the Ignore List.")
+        if (userWords.length > 0) {
+            new Setting(userPane)
+                .setName("Clear all")
                 .addButton((button) =>
                     button
                         .setButtonText("Clear All")
                         .setWarning()
                         .onClick(async () => {
-                            if (confirm("Are you sure you want to delete all words in your User Dictionary?")) {
+                            if (confirm("Delete all words in User Dictionary?")) {
                                 this.plugin.data.userWords = [];
                                 await this.plugin.saveWords();
                                 await this.plugin.reloadDictionary(false);
-                                new Notice("All user words cleared.");
+                                new Notice("User dictionary cleared.");
                                 this.display();
                             }
                         })
                 );
-		}
+        }
 
-        containerEl.createEl("h3", { text: "Ignore List" });
-		containerEl.createEl("p", {
-			text: "Ignored words will never be suggested and won't be re-added when scanning the vault.",
-			cls: "setting-item-description",
-		});
+        // --- Ignore List Pane ---
+        const ignorePane = dualPane.createEl("div", { cls: "txt-autocomplete-word-pane" });
+        ignorePane.createEl("h3", { text: "Ignore List" });
+        
+        const ignoredWords = this.plugin.data.ignoredWords || [];
+        const ignoreList = ignorePane.createEl("div", { cls: "txt-autocomplete-word-list txt-ignored-words-list" });
+        if (ignoredWords.length === 0) {
+            ignoreList.createEl("div", { text: "No ignored words.", cls: "txt-autocomplete-word-item" });
+        } else {
+            for (const word of ignoredWords) {
+                const item = ignoreList.createEl("div", { cls: "txt-autocomplete-word-item" });
+                item.createEl("span", { text: word });
 
-		const ignoredWords = this.plugin.data.ignoredWords || [];
-		if (ignoredWords.length > 0) {
-			const details = containerEl.createEl("details");
-			details.createEl("summary", { text: `View ignored words (${ignoredWords.length})` });
-			
-			const list = details.createEl("div", { cls: "txt-autocomplete-word-list" });
-			for (const word of ignoredWords) {
-				const item = list.createEl("div", { cls: "txt-autocomplete-word-item" });
-				item.style.display = "flex";
-				item.style.justifyContent = "space-between";
-				item.style.alignItems = "center";
-				item.style.marginBottom = "4px";
+                const btnRestore = item.createEl("div", { cls: "clickable-icon" });
+                setIcon(btnRestore, "undo");
+                btnRestore.setAttribute("aria-label", "Unignore");
 
-				item.createEl("span", { text: word });
-
-				const btns = item.createEl("div");
-				const btnUnignore = btns.createEl("button", { text: "Unignore" });
-				btnUnignore.onclick = async () => {
-					this.plugin.data.ignoredWords = this.plugin.data.ignoredWords?.filter(w => w !== word);
-					await this.plugin.saveWords();
+                btnRestore.onclick = async () => {
+                    this.plugin.data.ignoredWords = this.plugin.data.ignoredWords?.filter(w => w !== word);
+                    await this.plugin.saveWords();
                     await this.plugin.reloadDictionary(false);
-					new Notice(`Unignored '${word}'.`);
-					this.display();
-				};
-			}
+                    new Notice(`Unignored '${word}'.`);
+                    this.display();
+                };
+            }
+        }
 
-            new Setting(containerEl)
-                .setName("Clear all ignored words")
-                .setDesc("Remove all words from the Ignore List. They may be re-learned during future scans.")
+        if (ignoredWords.length > 0) {
+            new Setting(ignorePane)
+                .setName("Clear all")
                 .addButton((button) =>
                     button
                         .setButtonText("Clear All")
                         .setWarning()
                         .onClick(async () => {
-                            if (confirm("Are you sure you want to clear the entire Ignore List?")) {
+                            if (confirm("Clear the entire Ignore List?")) {
                                 this.plugin.data.ignoredWords = [];
                                 await this.plugin.saveWords();
                                 await this.plugin.reloadDictionary(false);
@@ -279,7 +296,7 @@ export class AutocompleteSettingTab extends PluginSettingTab {
                             }
                         })
                 );
-		}
+        }
 
         containerEl.createEl("h3", { text: "Actions" });
 
@@ -314,5 +331,12 @@ export class AutocompleteSettingTab extends PluginSettingTab {
                         new Notice("Dictionary reloaded");
 					}),
 			);
+
+		// Restore scroll positions
+		containerEl.scrollTop = mainScroll;
+		const newUserList = containerEl.querySelector(".txt-user-words-list");
+		if (newUserList) newUserList.scrollTop = userListScroll;
+		const newIgnoreList = containerEl.querySelector(".txt-ignored-words-list");
+		if (newIgnoreList) newIgnoreList.scrollTop = ignoreListScroll;
 	}
 }

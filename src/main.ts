@@ -62,7 +62,7 @@ export default class TextAutocompletePlugin extends Plugin {
 	public async loadSettings(): Promise<void> {
 		const savedData = await this.loadData() as SavedData | null;
 		this.data = savedData || {};
-		
+
 		this.settings = {
 			...DEFAULT_SETTINGS,
 			...(this.data.settings || {}),
@@ -347,9 +347,9 @@ export default class TextAutocompletePlugin extends Plugin {
 		const before = line.text.slice(0, offset);
 		const after = line.text.slice(offset);
 
-		if (/^[-\p{L}\p{N}'’]/u.test(after)) return null;
+		if (/^[\p{L}\p{N}'’]/u.test(after)) return null;
 
-		const match = before.match(/[\p{L}][-\p{L}\p{N}'’]*$/u);
+		const match = before.match(/[\p{L}][\p{L}\p{N}'’]*$/u);
 		if (!match) return null;
 
 		const prefix = match[0];
